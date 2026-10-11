@@ -59,7 +59,7 @@ DRAW_PILE_BORDER_PX = 3
 DETECT_PX = 96                    # zone is shrunk to this size for motion/change checks
 MOTION_PIXEL_DIFF = 25            # a pixel "changed" if any channel differs by more than this
 STILL_MAX_FRACTION = 0.01         # zone is "still" if fewer than 1% of pixels moved
-STILL_SECONDS = 0.2               # zone must be still this long before a card is read
+STILL_SECONDS = 0.0               # 0 bypasses motion/stillness gating; recognize changed frames immediately
 CHANGE_MIN_FRACTION = 0.06        # zone must differ >6% from the last read to count as a new card
 READ_COOLDOWN_SECONDS = 1.0       # minimum time between two card reads
 

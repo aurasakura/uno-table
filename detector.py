@@ -5,7 +5,7 @@ Pipeline (CardDetector.update, called once per camera frame with the top-down bo
   1. crop the discard zone
   2. wait until it has been still for STILL_SECONDS (a passing hand keeps resetting the timer)
   3. compare with the zone as it looked at the last read; ignore if it hasn't changed
-  4. locate a card against the empty zone and straighten its crop
+  4. send the full detection zone directly to recognition
   5. require compatible colour AND symbol evidence before emitting a play
 """
 from dataclasses import dataclass, field
@@ -250,7 +250,7 @@ class CardDetector:
             return None
         self.motion = _diff_fraction(small, self.prev)
         self.prev = small
-        if self.motion > C.STILL_MAX_FRACTION:
+        if C.STILL_SECONDS > 0 and self.motion > C.STILL_MAX_FRACTION:
             self.still_since = now
             self.status = "moving"
             return None
@@ -271,14 +271,8 @@ class CardDetector:
         if now - self.last_read_time < C.READ_COOLDOWN_SECONDS:
             self.status = "cooldown"
             return None
-        # Hue/black masks merge projector tint and shadows into the card. Use the
-        # actual empty zone and require an outline before any model read.
-        mask = cv2.absdiff(zone, self.empty_zone).max(axis=2) > C.MOTION_PIXEL_DIFF
-        card_img = extract_card_image(zone, mask)
-        if card_img is None:
-            self.last_card_img = None
-            self.status = "waiting: no clear card outline"
-            return None
+        # Read the calibrated zone directly; outline extraction is disabled.
+        card_img = zone.copy()
         self.last_card_img = card_img
         self.live_label, self.fractions, _ = classify_colour(card_img)
         if collect and (self.capture_baseline is None or
