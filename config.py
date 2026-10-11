@@ -18,7 +18,7 @@ TEST_MODE = True
 # or a DroidCam URL string such as "http://192.168.1.23:4747/video".
 CAMERA_INDEX = 0
 # Windows capture backend for numeric indexes: "dshow" (usually best for DroidCam), "msmf" or "any"
-CAMERA_BACKEND = "dshow"
+CAMERA_BACKEND = "msmf"
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 
@@ -59,22 +59,25 @@ DRAW_PILE_BORDER_PX = 3
 DETECT_PX = 96                    # zone is shrunk to this size for motion/change checks
 MOTION_PIXEL_DIFF = 25            # a pixel "changed" if any channel differs by more than this
 STILL_MAX_FRACTION = 0.01         # zone is "still" if fewer than 1% of pixels moved
-STILL_SECONDS = 0.6               # zone must be still this long before a card is read
+STILL_SECONDS = 0.2               # zone must be still this long before a card is read
 CHANGE_MIN_FRACTION = 0.06        # zone must differ >6% from the last read to count as a new card
 READ_COOLDOWN_SECONDS = 1.0       # minimum time between two card reads
 
 # Colour classification, OpenCV HSV: H 0-179, S 0-255, V 0-255
 SAT_MIN = 90                      # pixels less saturated than this are "not coloured" (white, grey, skin)
-VAL_MIN = 60                      # pixels darker than this are not counted as coloured
-BLACK_VAL_MAX = 60                # pixels darker than this count as "black" (wild)
+VAL_MIN = 60                      # default masks, including UNO card-back detection
+CARD_VAL_MIN = 10                 # localized faces retain dim green/blue hue
+BLACK_VAL_MAX = 60                # dark-pixel diagnostic; never a card identity
 HUE_RANGES = {
     "red":    [(0, 8), (170, 179)],
     "yellow": [(18, 35)],
     "green":  [(40, 85)],
     "blue":   [(90, 130)],
 }
-MIN_COLOUR_FRACTION = 0.08        # this share of the zone must be one colour to read a card
-MIN_BLACK_FRACTION = 0.10         # this share of the zone must be black to read a wild
+MIN_COLOUR_FRACTION = 0.03        # supported hue share of a localized card crop
+COLOUR_SECOND_MIN = 0.02         # meaningful competing hue (ambiguous regular colour)
+COLOUR_SECOND_RATIO = 0.5        # reject regular hue when competing hue is this strong
+MIN_BLACK_FRACTION = 0.10         # debug-bar reference only; darkness cannot identify wild
 # A wild / wild +4 face also shows red, yellow, green and blue. A card covers ~20% of the zone and
 # each colour patch is a few % of the card, so 0.4% of the zone per colour is enough.
 WILD_MIN_COLOURS = 2              # at least this many of the 4 colours must show to read a wild
@@ -123,7 +126,7 @@ UNDO_DEPTH = 50                   # key Z can step back this many game actions
 # SYMBOL RECOGNITION (YOLOv8, optional)
 # =====================================================================
 # Reads numbers / skip / reverse / +2 / +4 on the cut-out card. Needs `pip install ultralytics`.
-# If the model or ultralytics is missing, cards are read by colour only.
+# If no symbol model can identify the card, automatic recognition abstains.
 YOLO_ENABLED = True
 YOLO_MODEL = "models/best_train2.pt"
 YOLO_CONF = 0.4

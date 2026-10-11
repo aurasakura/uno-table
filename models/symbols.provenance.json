@@ -1,0 +1,11 @@
+{
+  "architecture": "YOLOv8n-cls",
+  "source": "trained-uno-model/freeze5/symbols.pt",
+  "sha256": "316e08fe1f8a3960a55772df6f22e72c0ba712d83317c98af600e4e7bc9b8a90",
+  "training": {"epochs":30,"freeze":5,"seed":42,"image_size":224,"original_train_crops":52,"train_rotation_copies":52,"validation_originals":27},
+  "confidence":0.6,
+  "pre_refinement_validation": {"accepted_correct":15,"accepted_incorrect":2,"abstain":10},
+  "validation_limit": "Best checkpoint and candidate selection reused same capture-session validation; not independent real-world test. Six, wild and wild4 include same-card diagnostics.",
+  "limitations": ["6 low confidence", "9 confusion", "wild4 misread as draw2", "camera extraction and changing projector lighting unverified"],
+  "installation": "Added to absent models/symbols.pt for user-requested joint-recognition refinement; fallback detector weights preserved. Refined joint metrics and regression results recorded separately in trained-uno-model/repo_joint_metrics.json."
+}

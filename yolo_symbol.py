@@ -30,7 +30,7 @@ def label_to_card(name):
         return None, None
     colour, action, num = m.groups()
     if colour == "color":
-        return "wild", ("wild4" if num == "400" else None)
+        return "wild", {"400": "wild4", "40": "wild"}.get(num)
     if colour == "color2":
         return "wild", "wild4"
     if action or num == "20":   # +2 is the only action left once skip/reverse are named
@@ -90,12 +90,18 @@ def classify(card_bgr):
     Tries the crop and its 180-degree turn, since cards can lie either way up."""
     import cv2
     best_name, best_p = None, 0.0
+    accepted_names = set()
     try:
         for img in (card_bgr, cv2.rotate(card_bgr, cv2.ROTATE_180)):
             p = _cls(img, verbose=False)[0].probs
+            if float(p.top1conf) >= C.SYMBOL_CONF:
+                accepted_names.add(_cls.names[p.top1])
             if p.top1conf > best_p:
                 best_name, best_p = _cls.names[p.top1], float(p.top1conf)
     except Exception as e:
         _disable_classifier(e)
+        return None
+    # Confident 6/9 (or other) disagreement between orientations must abstain.
+    if len(accepted_names) > 1:
         return None
     return best_name if best_p >= C.SYMBOL_CONF else None

@@ -47,7 +47,7 @@ On the **laptop running `main.py`**, click an app window first. Either letter ca
 | Problem | What to do |
 |---|---|
 | Misread card | Stop play. `Z`, then replacement via `R Y G B W` or `1–4` (limits above). Check turn/counts. |
-| `?` beside zone | Symbol unread; colour-only play counted. Check card; `Z` then action key for a missed action. |
+| Debug says colour/symbol unknown or conflicting | No camera play counted. Reposition card, clear hands, improve lighting, or use an explicit manual override. Dark cards are not assumed Wild. |
 | Camera disconnected | Reconnect DroidCam. Game/UNO timer continue without detection. If video stays absent, quit, probe, relaunch; restart resets game. |
 | Projection misaligned | Adjust placement, then `S`; empty zone while it relearns. Camera moved/resolution changed: `C` again. |
 | Corner shadows | Black corner blocks protect posts. Fit full table edge; keep dots clear of posts. |
@@ -55,6 +55,8 @@ On the **laptop running `main.py`**, click an app window first. Either letter ca
 | New game | Empty discard zone **before `N`**; wait a second, deal 7 each, place starting card. |
 
 ## 5. Before the demo checklist
+
+Automatic plays need both colour and number/action recognition. Wild/+4 need a confident symbol and multiple hues, never darkness alone. The current supplied-deck classifier still misses/confuses6,9,+4; validate real cards before relying on it. `python main.py --collect LABEL` saves localized stable crops even when the symbol is unknown, without counting unknowns as plays. Empty the zone before calibration; retain steady lighting and use Space to relearn an empty zone if it changes.
 
 - [ ] Laptop, phone and projector powered; cables secure.
 - [ ] DroidCam video live; correct camera index selected.

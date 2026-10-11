@@ -415,13 +415,13 @@ class App:
             self.board_view = None
             return
         self.board_view = cv2.warpPerspective(frame, self.H, (C.BOARD_PX, C.BOARD_PX))
-        card = self.detector.update(self.board_view, now)
+        card = self.detector.update(self.board_view, now, collect=bool(self.collect))
+        if self.collect and self.detector.capture_ready:
+            self.save_crop(now)             # unknown symbols are training data, not plays
         if card:
             print(f"[detect] new card: {card}   scores "
                   + " ".join(f"{k}={v:.2f}" for k, v in card.scores.items()))
             self.play_card(card, now)
-            if self.collect:
-                self.save_crop(now)
 
     def step(self, frame, now):
         """One frame of the loop. frame is None when the camera gave nothing:
@@ -469,7 +469,7 @@ def main():
     g.add_argument("--projector", action="store_true", help="projector mode")
     ap.add_argument("--camera", help="camera index or DroidCam URL (overrides config)")
     ap.add_argument("--collect", metavar="LABEL",
-                    help="save each read card crop to dataset/raw/LABEL (0-9 skip reverse draw2 wild wild4)")
+                    help="save stable localized crops, including unknowns, to dataset/raw/LABEL (0-9 skip reverse draw2 wild wild4)")
     ap.add_argument("--probe", action="store_true", help="show all camera indexes and exit")
     args = ap.parse_args()
 

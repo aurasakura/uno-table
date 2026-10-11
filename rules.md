@@ -41,7 +41,8 @@ Seats are P1-P4 in turn order (`config.SEAT_NAMES`). The dealer is the seat befo
 | Starting Wild Draw Four | event `reject` "put it back", game not started, the next card read is the new starting card |
 | P1 plays a matching card | `hands[P1] -= 1`, `top = card`, `colour = card.colour`, `current -> P2` |
 | Match check | legal if card is wild/+4, or `colour` is unknown, or `card.colour == colour`, or same symbol as top |
-| Symbol not read (`None`) | match by colour only, and log it |
+| Camera colour/symbol unknown or conflicting | detector emits no play; game and accepted-card baseline unchanged |
+| Manual colour key without a symbol | explicit operator override; engine matches by colour |
 | P1 plays an illegal card | event `warn`, card still recorded (`REJECT_ILLEGAL = False`). With `True`: event `reject`, nothing changes |
 | P1 plays Skip | `hands[P1] -= 1`, P2 skipped, `current -> P3` |
 | P1 plays Reverse | `hands[P1] -= 1`, `direction *= -1`, `current -> P4` (with 2 seats: acts as skip) |

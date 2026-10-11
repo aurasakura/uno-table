@@ -5,8 +5,8 @@ Pipeline (CardDetector.update, called once per camera frame with the top-down bo
   1. crop the discard zone
   2. wait until it has been still for STILL_SECONDS (a passing hand keeps resetting the timer)
   3. compare with the zone as it looked at the last read; ignore if it hasn't changed
-  4. classify the colour (red / yellow / green / blue / wild)
-  5. cut out the card and call recognise_symbol()   <-- add number/action recognition there
+  4. locate a card against the empty zone and straighten its crop
+  5. require compatible colour AND symbol evidence before emitting a play
 """
 from dataclasses import dataclass, field
 
@@ -80,11 +80,11 @@ def detect_rect():
 # ---------------------------------------------------------------------
 # Colour classification
 # ---------------------------------------------------------------------
-def colour_masks(bgr):
+def colour_masks(bgr, val_min=None):
     """Boolean masks per colour name (+ 'black') for an image."""
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    coloured = (s >= C.SAT_MIN) & (v >= C.VAL_MIN)
+    coloured = (s >= C.SAT_MIN) & (v >= (C.VAL_MIN if val_min is None else val_min))
     masks = {}
     for name, ranges in C.HUE_RANGES.items():
         m = np.zeros(h.shape, bool)
@@ -96,28 +96,23 @@ def colour_masks(bgr):
 
 
 def classify_colour(bgr):
-    """Return (label or None, fractions dict, card mask) for a zone image."""
-    masks = colour_masks(bgr)
+    """Dominant supported card hue; darkness never identifies a wild card."""
+    masks = colour_masks(bgr, val_min=C.CARD_VAL_MIN)
     fr = {name: float(m.mean()) for name, m in masks.items()}
-    best = max(COLOURS, key=lambda n: fr[n])
-    if fr["black"] >= C.MIN_BLACK_FRACTION and fr["black"] >= fr[best]:
-        label = "wild"
-    elif fr[best] >= C.MIN_COLOUR_FRACTION:
-        label = best
-    else:
-        label = None
+    best, second = sorted(COLOURS, key=lambda n: fr[n], reverse=True)[:2]
+    supported = fr[best] >= C.MIN_COLOUR_FRACTION
+    ambiguous = fr[second] >= C.COLOUR_SECOND_MIN and fr[second] >= fr[best] * C.COLOUR_SECOND_RATIO
+    label = best if supported and not ambiguous else None
     card_mask = np.zeros(bgr.shape[:2], bool)
-    for m in masks.values():
-        card_mask |= m
+    for name in COLOURS:
+        card_mask |= masks[name]
     return label, fr, card_mask
 
 
 def classify_hsv_pixel(h, s, v):
     """Which class a single HSV pixel falls into (used by the debug click)."""
-    if v <= C.BLACK_VAL_MAX:
-        return "black"
-    if s < C.SAT_MIN or v < C.VAL_MIN:
-        return "none (not saturated/bright enough)"
+    if s < C.SAT_MIN or v < C.CARD_VAL_MIN:
+        return "black (not a card identity)" if v <= C.BLACK_VAL_MAX else "none (not saturated/bright enough)"
     for name, ranges in C.HUE_RANGES.items():
         if any(lo <= h <= hi for lo, hi in ranges):
             return name
@@ -130,21 +125,28 @@ def classify_hsv_pixel(h, s, v):
 def _order_points(pts):
     """Order 4 points as top-left, top-right, bottom-right, bottom-left."""
     pts = np.asarray(pts, np.float32)
-    s, d = pts.sum(1), np.diff(pts, axis=1).ravel()
-    return np.array([pts[s.argmin()], pts[d.argmin()], pts[s.argmax()], pts[d.argmax()]], np.float32)
+    centre = pts.mean(axis=0)
+    angles = np.arctan2(pts[:, 1] - centre[1], pts[:, 0] - centre[0])
+    ordered = pts[np.argsort(angles)]
+    # Sum/difference corner selection repeats a point on 45-degree rectangles.
+    return np.roll(ordered, -int(ordered.sum(1).argmin()), axis=0).astype(np.float32)
 
 
 def extract_card_image(zone_bgr, card_mask, size=(200, 300)):
     """Cut the card out of the zone and straighten it to an upright (portrait) image.
-    Falls back to the whole zone if no clear card outline is found."""
+    Returns None without a plausible outline; never classifies the whole zone."""
     m = cv2.morphologyEx(card_mask.astype(np.uint8) * 255, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
     contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return zone_bgr
-    c = max(contours, key=cv2.contourArea)
-    if cv2.contourArea(c) < 0.03 * m.size:
-        return zone_bgr
-    box = _order_points(cv2.boxPoints(cv2.minAreaRect(c)))
+    for c in sorted(contours, key=cv2.contourArea, reverse=True):
+        rect = cv2.minAreaRect(c)
+        a, b = sorted(rect[1])
+        area = a * b
+        if (a > 0 and 0.03 * m.size <= area <= 0.85 * m.size
+                and 1.15 <= b / a <= 2.15 and cv2.contourArea(c) >= 0.55 * area):
+            break
+    else:
+        return None
+    box = _order_points(cv2.boxPoints(rect))
     tl, tr, br, bl = box
     if np.linalg.norm(tr - tl) > np.linalg.norm(br - tr):   # landscape -> turn to portrait
         box = np.array([tr, br, bl, tl], np.float32)
@@ -178,8 +180,28 @@ def recognise_symbol(card_bgr, colour, board_bgr=None, zone=None):
         return yolo_symbol.classify(card_bgr)
     if board_bgr is None:
         return None
-    _, symbol, _ = yolo_symbol.recognise(board_bgr, zone)
+    detected_colour, symbol, _ = yolo_symbol.recognise(board_bgr, zone)
+    if symbol not in ("wild", "wild4") and detected_colour != colour:
+        return None
     return symbol
+
+
+REGULAR_SYMBOLS = tuple(str(n) for n in range(10)) + ("skip", "reverse", "draw2")
+
+
+def recognise_card(card_bgr, board_bgr=None, zone=None):
+    """Joint recognition of a localized crop. None means do not advance play."""
+    colour, fractions, _ = classify_colour(card_bgr)
+    symbol = recognise_symbol(card_bgr, colour, board_bgr, zone)
+    if symbol in ("wild", "wild4"):
+        # The symbol identifies a wild. Multiple hues reject a conflicting regular
+        # face; black/shadow alone never supplies either piece of evidence.
+        if sum(fractions[c] >= C.WILD_MIN_COLOUR_FRACTION for c in COLOURS) < C.WILD_MIN_COLOURS:
+            return None
+        return Card("wild", symbol, fractions)
+    if colour in COLOURS and symbol in REGULAR_SYMBOLS:
+        return Card(colour, symbol, fractions)
+    return None
 
 
 # ---------------------------------------------------------------------
@@ -202,6 +224,7 @@ class CardDetector:
         """Forget everything; the next still zone becomes the 'empty' baseline."""
         self.prev = None
         self.baseline = None       # zone as it looked at the last read (or when empty)
+        self.empty_zone = None     # localization always compares with the empty table
         self.still_since = 0.0
         self.last_read_time = 0.0
         self.status = "waiting"
@@ -210,14 +233,17 @@ class CardDetector:
         self.fractions = {}
         self.live_label = None
         self.last_card_img = None   # straightened crop of the last read card (for --collect)
+        self.capture_ready = False
+        self.capture_baseline = None
+        self.last_capture_time = 0.0
 
-    def update(self, board_bgr, now):
+    def update(self, board_bgr, now, collect=False):
         """Feed one top-down board image. Returns a Card when a new card is read, else None."""
         x0, y0, x1, y1 = detect_rect()
         zone = board_bgr[y0:y1, x0:x1]
         small = _small(zone)
-        self.live_label, self.fractions, _ = classify_colour(
-            cv2.resize(zone, (128, 128), interpolation=cv2.INTER_AREA))
+        self.capture_ready = False
+        self.live_label, self.fractions = None, {}
 
         if self.prev is None:
             self.prev, self.still_since = small, now
@@ -235,6 +261,7 @@ class CardDetector:
 
         if self.baseline is None:
             self.baseline = small
+            self.empty_zone = zone.copy()
             self.status = "learned empty zone"
             return None
         self.change = _diff_fraction(small, self.baseline)
@@ -244,23 +271,28 @@ class CardDetector:
         if now - self.last_read_time < C.READ_COOLDOWN_SECONDS:
             self.status = "cooldown"
             return None
-        if self.live_label is None:
-            # Changed but no card colour (card removed, hand resting, lighting shift).
-            # Keep the old baseline so the same card isn't re-read when the hand leaves.
-            self.status = "changed, no card colour"
+        # Hue/black masks merge projector tint and shadows into the card. Use the
+        # actual empty zone and require an outline before any model read.
+        mask = cv2.absdiff(zone, self.empty_zone).max(axis=2) > C.MOTION_PIXEL_DIFF
+        card_img = extract_card_image(zone, mask)
+        if card_img is None:
+            self.last_card_img = None
+            self.status = "waiting: no clear card outline"
             return None
-        if self.live_label == "wild" and sum(
-                self.fractions[c] >= C.WILD_MIN_COLOUR_FRACTION for c in COLOURS) < C.WILD_MIN_COLOURS:
-            # Black alone is a sleeve, phone or shadow: a wild face also shows the four colours.
-            self.status = "black but no wild colours"
+        self.last_card_img = card_img
+        self.live_label, self.fractions, _ = classify_colour(card_img)
+        if collect and (self.capture_baseline is None or
+                        _diff_fraction(small, self.capture_baseline) >= C.CHANGE_MIN_FRACTION):
+            if now - self.last_capture_time >= C.READ_COOLDOWN_SECONDS:
+                self.capture_ready = True
+                self.capture_baseline = small.copy()
+                self.last_capture_time = now
+        card = recognise_card(card_img, board_bgr, (x0, y0, x1, y1))
+        if card is None:
+            self.status = "waiting: colour/symbol unknown or conflicting"
             return None
-
-        # New card!
         self.baseline = small
         self.last_read_time = now
-        _, _, mask_full = classify_colour(zone)
-        card_img = extract_card_image(zone, mask_full)
-        self.last_card_img = card_img
-        card = Card(self.live_label, recognise_symbol(card_img, self.live_label, board_bgr, (x0, y0, x1, y1)), dict(self.fractions))
+        self.live_label = card.colour
         self.status = f"READ {card}"
         return card

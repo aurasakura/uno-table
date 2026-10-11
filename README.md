@@ -16,6 +16,12 @@ python main.py --projector    # real projector mode
 ```
 All settings are in `config.py`.
 
+Camera plays require a localized card crop with compatible colour **and** confident number/action symbol. Dark pixels never imply Wild: Wild/+4 require a recognized symbol and multiple card hues. Unknown or conflicting reads leave the game and accepted-card baseline unchanged; manual keys remain explicit overrides. Colour is measured on the crop, not the projected background.
+
+`models/symbols.pt` is the supplied-deck candidate (provenance beside the file). Heldout diagnostic validation:15/27 accepted symbols correct,2 wrong,10 abstentions at0.6; rare6/9/+4 and live extraction remain unreliable. Joint checks reduce guesses but do not prove model predictions are correct. Check real cards before a demo.
+
+Collect more real crops with `python main.py --collect LABEL` (`0`–`9`, `skip`, `reverse`, `draw2`, `wild`, `wild4`). Clear/calibrate the empty zone first. A stable localized crop is saved even if recognition abstains; saving training data does not make an unknown card a play. Review crops before `python train_symbols.py` overwrites the classifier.
+
 ## Files
 | file | what it does |
 |---|---|
