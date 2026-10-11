@@ -41,9 +41,15 @@ def label_to_card(name):
 def recognise(image_bgr, zone=None):
     """Best (colour, symbol, confidence) whose box centre lies inside zone (x0, y0, x1, y1),
     or anywhere if zone is None. (None, None, 0.0) if nothing is found."""
+    global _model, _failed
     if not C.YOLO_ENABLED or _load() is None:
         return None, None, 0.0
-    res = _model(image_bgr, conf=C.YOLO_CONF, verbose=False)[0]
+    try:
+        res = _model(image_bgr, conf=C.YOLO_CONF, verbose=False)[0]
+    except Exception as e:      # never crash the game loop: fall back to colour only
+        print(f"[yolo] inference failed, disabled: {e}")
+        _model, _failed = None, True
+        return None, None, 0.0
     best = None
     for (bx0, by0, bx1, by1), cls, conf in zip(res.boxes.xyxy.tolist(), res.boxes.cls.tolist(), res.boxes.conf.tolist()):
         cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
@@ -58,14 +64,24 @@ def recognise(image_bgr, zone=None):
 # Our own symbol classifier (trained by train_symbols.py on the real deck)
 # ---------------------------------------------------------------------
 _cls = None
+_cls_failed = False
+
+
+def _disable_classifier(why):
+    global _cls, _cls_failed
+    print(f"[symbols] classifier disabled, using the pretrained detector: {why}")
+    _cls, _cls_failed = None, True
 
 
 def has_classifier():
     global _cls
     import os
-    if _cls is None and C.YOLO_ENABLED and os.path.exists(C.SYMBOL_MODEL):
-        from ultralytics import YOLO
-        _cls = YOLO(C.SYMBOL_MODEL)
+    if _cls is None and not _cls_failed and C.YOLO_ENABLED and os.path.exists(C.SYMBOL_MODEL):
+        try:
+            from ultralytics import YOLO
+            _cls = YOLO(C.SYMBOL_MODEL)
+        except Exception as e:
+            _disable_classifier(e)
     return _cls is not None
 
 
@@ -74,8 +90,12 @@ def classify(card_bgr):
     Tries the crop and its 180-degree turn, since cards can lie either way up."""
     import cv2
     best_name, best_p = None, 0.0
-    for img in (card_bgr, cv2.rotate(card_bgr, cv2.ROTATE_180)):
-        p = _cls(img, verbose=False)[0].probs
-        if p.top1conf > best_p:
-            best_name, best_p = _cls.names[p.top1], float(p.top1conf)
+    try:
+        for img in (card_bgr, cv2.rotate(card_bgr, cv2.ROTATE_180)):
+            p = _cls(img, verbose=False)[0].probs
+            if p.top1conf > best_p:
+                best_name, best_p = _cls.names[p.top1], float(p.top1conf)
+    except Exception as e:
+        _disable_classifier(e)
+        return None
     return best_name if best_p >= C.SYMBOL_CONF else None

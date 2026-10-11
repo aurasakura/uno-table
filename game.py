@@ -6,8 +6,9 @@ so the engine assumes everyone plays in turn order. rules.md lists the rules
 and the exact state change each one makes here.
 
 Every method returns a list of Event(kind, text). Kinds:
-  "info", "play", "warn" (illegal but recorded), "reject" (illegal, refused),
-  "draw" (someone picks up cards), "penalty" (forgot UNO), "uno", "win"
+  "info", "start" (starting card accepted), "play", "warn" (illegal but recorded),
+  "reject" (illegal, refused), "draw" (someone picks up cards), "penalty" (forgot UNO),
+  "uno", "uno_due", "unsure" (symbol not read), "win"
 """
 from collections import namedtuple
 
@@ -42,6 +43,7 @@ class Game:
         self.uno_since = None       # time uno_watch went down to 1 card (for the UNO? countdown)
         self.winner = None
         self.started = False
+        self.unsure = False         # last card's symbol was not read (HUD shows "?" until the next action)
         self.log = []
 
     @property
@@ -81,6 +83,13 @@ class Game:
         self.pending_draw = (seat, n)
         self._say(events, "penalty", f"{self.name(seat)} forgot UNO, +{n} -> {self.hands[seat]} cards")
 
+    def _note_unsure(self, events, card):
+        """An unread symbol is played as a number / plain wild. Say so, so a missed action can be fixed."""
+        self.unsure = card.symbol is None and not card.fake
+        if self.unsure:
+            self._say(events, "unsure", f"symbol of {card} not read: if it was an action card "
+                                        f"press Z then enter it with 1-4")
+
     def _illegal(self, card, kind):
         """Why this card may not be played on the top card, or None if it may."""
         if kind in WILDS:
@@ -101,6 +110,7 @@ class Game:
         """First card turned from the deck onto the discard pile."""
         events = []
         kind = card_kind(card)
+        self.unsure = False
         if kind == "wild4":
             self._say(events, "reject", "First card is a Wild Draw Four: put it back in the deck and turn another.")
             return events
@@ -108,7 +118,8 @@ class Game:
         self.top = card
         self.colour = None if kind == "wild" else card.colour
         first = self.current
-        self._say(events, "info", f"New game: starting card {card}")
+        self._say(events, "start", f"New game: starting card {card}")
+        self._note_unsure(events, card)
         if kind == "skip":
             self._say(events, "info", f"{self.name(first)} is skipped")
             self.current = self.seat_after(first)
@@ -134,18 +145,17 @@ class Game:
         if self.winner is not None:
             self._say(events, "info", f"Game over, {self.name(self.winner)} won. Press N for a new game.")
             return events
-        self._check_uno(events)
         seat, kind = self.current, card_kind(card)
         who = self.name(seat)
 
         problem = self._illegal(card, kind)
-        if problem and C.REJECT_ILLEGAL:
+        if problem and C.REJECT_ILLEGAL:     # before the UNO check, so a refused card changes nothing
             self._say(events, "reject", f"{who}: {card} is not allowed ({problem}). Take it back.")
             return events
+        self._check_uno(events)
         if problem:
             self._say(events, "warn", f"WARNING {who}: {card} does not match ({problem}), recorded anyway")
-        if kind is None:
-            self._say(events, "info", f"symbol of {card} not read: matched by colour only")
+        self._note_unsure(events, card)
 
         if self.colour is None and kind not in WILDS:
             self._say(events, "info", f"Colour is now {card.colour}")
@@ -194,6 +204,7 @@ class Game:
             self._say(events, "info", "Draw ignored: no game running")
             return events
         self._check_uno(events)
+        self.unsure = False
         seat = self.current
         self._give(seat, n)
         self.pending_draw = None
@@ -219,11 +230,15 @@ class Game:
             return 0.0
         return max(0.0, C.UNO_WINDOW_SECONDS - (now - self.uno_since))
 
-    def call_uno(self):
+    def call_uno(self, now=None):
         """Key U: the player who just went down to 1 card calls UNO,
         or, if nobody is on 1 card, the current player calls it before playing their second-last card."""
-        events = []
-        seat = self.uno_watch if self.uno_watch is not None else self.current
+        events = self.tick(now) if now is not None else []
+        if events:                  # the UNO? window ran out first: the penalty stands
+            self._say(events, "info", "UNO call too late: the window had already run out")
+            return events
+        open_call = self.uno_watch is not None and self.uno_watch not in self.called
+        seat = self.uno_watch if open_call else self.current
         self.called.add(seat)
         self._say(events, "uno", f"{self.name(seat)} calls UNO!")
         return events
@@ -243,4 +258,5 @@ class Game:
             "called": sorted(self.called),
             "winner": self.winner,
             "started": self.started,
+            "unsure": self.unsure,
         }

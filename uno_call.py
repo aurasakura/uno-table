@@ -62,6 +62,12 @@ class UnoCallWatcher:
 
     def __init__(self):
         self.since = None
+        self.seat = None
+
+    def watch(self, seat):
+        """Seat with an open UNO? window, or None. Any change restarts the hold timer."""
+        if seat != self.seat:
+            self.seat, self.since = seat, None
 
     def update(self, board_bgr, now, projected=None):
         if find_back(board_bgr, projected) is None:

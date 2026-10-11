@@ -58,6 +58,27 @@ def homography(src_pts, dst_pts):
     return cv2.getPerspectiveTransform(np.float32(src_pts), np.float32(dst_pts))
 
 
+def quad_problem(pts):
+    """Why 4 clicked points (in click order) can't be a calibration, or None if they can."""
+    p = np.float32(pts)
+    for i in range(4):
+        for j in range(i + 1, 4):
+            if np.linalg.norm(p[i] - p[j]) < C.CALIB_MIN_POINT_DIST_PX:
+                return f"points {i + 1} and {j + 1} are on top of each other"
+    if cv2.contourArea(p) < C.CALIB_MIN_AREA_PX:
+        return "the 4 points enclose almost no area"
+    signs = set()
+    for i in range(4):
+        a, b = p[i] - p[i - 1], p[(i + 1) % 4] - p[i]
+        cross = a[0] * b[1] - a[1] * b[0]
+        if abs(cross) < C.CALIB_MIN_CORNER_SIN * np.linalg.norm(a) * np.linalg.norm(b):
+            return f"point {i + 1} is in line with its neighbours"
+        signs.add(cross > 0)
+    if len(signs) > 1:
+        return "the shape is not convex (points clicked out of order?)"
+    return None
+
+
 # ---------------------------------------------------------------------
 # Drawing helper (shared with main.py)
 # ---------------------------------------------------------------------

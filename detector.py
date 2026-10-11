@@ -23,6 +23,7 @@ class Card:
     colour: str                     # "red" | "yellow" | "green" | "blue" | "wild"
     symbol: str | None = None       # "0".."9", "skip", "reverse", "draw2", "wild4", or None if unknown
     scores: dict = field(default_factory=dict)
+    fake: bool = False              # entered with a key: the symbol is known even when None
 
     def __str__(self):
         return self.colour if self.symbol is None else f"{self.colour} {self.symbol}"
@@ -247,6 +248,11 @@ class CardDetector:
             # Changed but no card colour (card removed, hand resting, lighting shift).
             # Keep the old baseline so the same card isn't re-read when the hand leaves.
             self.status = "changed, no card colour"
+            return None
+        if self.live_label == "wild" and sum(
+                self.fractions[c] >= C.WILD_MIN_COLOUR_FRACTION for c in COLOURS) < C.WILD_MIN_COLOURS:
+            # Black alone is a sleeve, phone or shadow: a wild face also shows the four colours.
+            self.status = "black but no wild colours"
             return None
 
         # New card!

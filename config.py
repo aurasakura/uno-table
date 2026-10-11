@@ -75,6 +75,10 @@ HUE_RANGES = {
 }
 MIN_COLOUR_FRACTION = 0.08        # this share of the zone must be one colour to read a card
 MIN_BLACK_FRACTION = 0.10         # this share of the zone must be black to read a wild
+# A wild / wild +4 face also shows red, yellow, green and blue. A card covers ~20% of the zone and
+# each colour patch is a few % of the card, so 0.4% of the zone per colour is enough.
+WILD_MIN_COLOURS = 2              # at least this many of the 4 colours must show to read a wild
+WILD_MIN_COLOUR_FRACTION = 0.004  # share of the zone each of those colours must cover
 
 # =====================================================================
 # REACTIONS
@@ -110,6 +114,10 @@ CALIB_DOT_INSET = 0.15            # dots sit this far in from the square's corne
 # =====================================================================
 TEST_PROJECTOR_WINDOW_PX = 600    # size of the fake projector window in test mode
 CALIBRATION_FILE = "calibration.json"
+CALIB_MIN_POINT_DIST_PX = 20      # clicked calibration points closer than this count as duplicates
+CALIB_MIN_AREA_PX = 5000          # the 4 points must enclose at least this many camera pixels
+CALIB_MIN_CORNER_SIN = 0.15       # each corner must bend by ~9 degrees or more (rejects 3 points in a line)
+UNDO_DEPTH = 50                   # key Z can step back this many game actions
 
 # =====================================================================
 # SYMBOL RECOGNITION (YOLOv8, optional)

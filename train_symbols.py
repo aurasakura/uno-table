@@ -17,10 +17,18 @@ RAW, SPLIT = "dataset/raw", "dataset/split"
 
 
 def build_split(val_frac):
+    """Returns the labels that were used."""
     shutil.rmtree(SPLIT, ignore_errors=True)
+    used, skipped = [], []
     for label in sorted(os.listdir(RAW)):
+        if not os.path.isdir(os.path.join(RAW, label)):
+            continue
         files = sorted(os.listdir(os.path.join(RAW, label)))     # names are timestamps
-        n_val = max(1, round(len(files) * val_frac))
+        if len(files) < 2:          # needs at least 1 train + 1 val crop
+            skipped.append(f"{label} ({len(files)} crop{'s' if len(files) != 1 else ''})")
+            continue
+        used.append(label)
+        n_val = min(len(files) - 1, max(1, round(len(files) * val_frac)))
         for i, f in enumerate(files):
             part = "val" if i >= len(files) - n_val else "train"
             out = os.path.join(SPLIT, part, label)
@@ -30,6 +38,10 @@ def build_split(val_frac):
             if part == "train":
                 cv2.imwrite(os.path.join(out, "r180_" + f), cv2.rotate(img, cv2.ROTATE_180))
         print(f"{label:8s} {len(files) - n_val:4d} train  {n_val:3d} val")
+    print(f"{len(used)} labels used: {' '.join(used)}")
+    if skipped:
+        print(f"WARNING skipped, fewer than 2 crops: {', '.join(skipped)}. Collect more with --collect.")
+    return used
 
 
 def main():
@@ -39,7 +51,10 @@ def main():
     ap.add_argument("--val", type=float, default=0.15)
     a = ap.parse_args()
 
-    build_split(a.val)
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))     # dataset/ and models/ sit next to this file
+    if not os.path.isdir(RAW) or len(build_split(a.val)) < 2:
+        raise SystemExit(f"Need at least 2 labels with 2+ crops each in {RAW}. Collect with "
+                         f"`python main.py --collect LABEL`.")
     from ultralytics import YOLO
     model = YOLO("yolov8n-cls.pt")
     model.train(data=os.path.abspath(SPLIT), epochs=a.epochs, imgsz=224, freeze=a.freeze,

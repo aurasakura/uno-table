@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 import config as C
+from detector import zone_rect
 from reactions import stamp_text
 
 AA = cv2.LINE_AA
@@ -62,6 +63,9 @@ def draw(board, snap, now=None):
         if active:
             edge_bar(board, side, colour)
     direction_arrow(board, snap["direction"], colour)
+    if snap.get("unsure"):          # last card's symbol was not read: Z to undo and re-enter it
+        x0, y0, _, _ = zone_rect()
+        stamp_text(board, "?", (x0 - C.ZONE_BORDER_PX - 16, y0 + 20), 0, C.HUD_ACTIVE_BGR, 0.9, 2)
     if now is not None:
         uno_prompt(board, snap, now)
 

@@ -8,6 +8,8 @@ Interactive UNO table.
   python main.py --probe       # show every camera index so you can find DroidCam
 """
 import argparse
+import copy
+import os
 import random
 import sys
 import time
@@ -49,6 +51,7 @@ HELP = """
    1 2 3 4    fake skip / +2 / reverse / wild +4
    u          UNO! (player on 1 card, or the current player before playing)
    d          current player draws a card and passes
+   z          undo the last play / draw / UNO call / penalty (then re-enter the right card)
    v          win effect (manual)       n   new game (4 players, 7 cards)
    h          show this help          q or Esc   quit
  Projector mode only
@@ -110,6 +113,8 @@ class App:
         self.stage = Stage()
         self.game = Game()
         self.uno_watcher = UnoCallWatcher()
+        self.undo_stack = []        # (game copy, stage.last_card, what was done) before each game action
+        self.last_cam_warning = 0.0
         sound.init()
         self.projected = None       # last board image sent to the projector (uno_call ignores lit pixels)
         self.board_view = None          # last top-down camera image
@@ -153,7 +158,7 @@ class App:
         if self.test_mode:
             prompts = ["the TOP-LEFT corner of the paper", "the TOP-RIGHT corner",
                        "the BOTTOM-RIGHT corner", "the BOTTOM-LEFT corner"]
-            pts = calibration.click_points(self.cap, WIN_CAM, prompts)
+            pts = self.click_quad(prompts)
             if pts is None:
                 return
             self.calib = {"cam_points": pts, "frame_size": self.frame_size}
@@ -166,7 +171,7 @@ class App:
             proj_pts = self.placement.board_to_projector(board_pts)
             prompts = [f"the projected white dot ({i + 1} of 4)" for i in range(4)]
             show_dot = lambda i: cv2.imshow(WIN_PROJ, dot_frame(proj_pts[i]))
-            pts = calibration.click_points(self.cap, WIN_CAM, prompts, show_dot)
+            pts = self.click_quad(prompts, show_dot)
             if pts is None:
                 return
             self.calib = {"cam_points": pts, "proj_points": proj_pts.tolist(),
@@ -174,6 +179,15 @@ class App:
         calibration.save(self.mode, self.calib)
         self.update_homography()
         print("Calibrated. Keep the discard zone EMPTY for a second so it learns the empty zone.")
+
+    def click_quad(self, prompts, on_step=None):
+        """Clicked points, asking again until they form a usable shape. None if cancelled."""
+        while True:
+            pts = calibration.click_points(self.cap, WIN_CAM, prompts, on_step)
+            problem = pts and calibration.quad_problem(pts)
+            if not problem:
+                return pts
+            print(f"[calibration] {problem}. Click the 4 points again.")
 
     def save_placement(self):
         self.calib["placement"] = self.placement.to_dict()
@@ -259,25 +273,44 @@ class App:
 
     def fake_card(self, key, now):
         if key in FAKE_COLOURS:
-            card = Card(FAKE_COLOURS[key])
+            card = Card(FAKE_COLOURS[key], fake=True)
         else:
             symbol = FAKE_ACTIONS[key]
             last = self.stage.last_card
             colour = "wild" if symbol == "wild4" else (
                 last.colour if last and last.colour != "wild" else random.choice(["red", "yellow", "green", "blue"]))
-            card = Card(colour, symbol)
+            card = Card(colour, symbol, fake=True)
         print(f"[fake] {card}")
         self.play_card(card, now)
 
     # -----------------------------------------------------------------
     # Game
     # -----------------------------------------------------------------
+    def act(self, what, fn):
+        """Run one game action, keeping a copy of the game from before it for key Z."""
+        before = (copy.deepcopy(self.game), self.stage.last_card, what)
+        events = fn()
+        if any(e.kind not in ("info", "reject") for e in events):    # something changed
+            self.undo_stack = (self.undo_stack + [before])[-C.UNDO_DEPTH:]
+        return events
+
+    def undo(self):
+        if not self.undo_stack:
+            print("[game] Undo: nothing to undo")
+            return
+        self.game, self.stage.last_card, what = self.undo_stack.pop()
+        print(f"[game] Undo: {what}. {self.game.name(self.game.current)} to play"
+              + ("" if self.game.started else " (no starting card yet)"))
+
     def play_card(self, card, now):
         prev_top, colour_unknown = self.game.top, self.game.colour_unknown
-        events = self.game.play(card, now)
-        sound.on_card(card, prev_top, colour_unknown, events, now)
-        if not any(e.kind == "reject" for e in events):
+        events = self.act(f"card {card}", lambda: self.game.play(card, now))
+        kinds = {e.kind for e in events}
+        if kinds & {"start", "play"}:            # accepted: not refused, not after a win
+            sound.on_card(card, prev_top, colour_unknown, events, now)
             self.stage.trigger(card, now)
+        elif "reject" in kinds:
+            sound.on_card(card, prev_top, colour_unknown, events, now)   # the illegal buzzer
         self.apply_events(events, now)
 
     def apply_events(self, events, now):
@@ -313,18 +346,25 @@ class App:
         elif ch == ord("h"):
             print(HELP)
         elif ch == ord("d"):
-            events = self.game.draw()
+            events = self.act("draw", self.game.draw)
             if any(e.kind == "draw" for e in events):
                 sound.play("draw", now)           # only key D; +2/+4/penalty draws have their own sounds
             self.apply_events(events, now)
         elif ch == ord("u"):
-            self.apply_events(self.game.call_uno(), now)
+            self.apply_events(self.act("UNO call", lambda: self.game.call_uno(now)), now)
+        elif ch == ord("z"):
+            self.undo()
         elif ch == ord("n"):
             self.game = Game()
             self.stage.last_card = None
+            self.stage.active.clear()
+            self.detector.reset()           # the current zone becomes the empty baseline
+            self.uno_watcher = UnoCallWatcher()
+            self.undo_stack.clear()
             sound.reset()
             sound.play("start", now)
-            print("[game] New game: 4 players, 7 cards each. The next card on the pile is the starting card.")
+            print("[game] New game: 4 players, 7 cards each. The discard zone should be EMPTY now; "
+                  "the next card on the pile is the starting card.")
         elif ch in TABLE_EVENTS:
             self.react(TABLE_EVENTS[ch], now)
             sound.play(TABLE_EVENTS[ch], now)
@@ -354,62 +394,71 @@ class App:
         return True
 
     def save_crop(self, now):
-        import os
         folder = os.path.join("dataset", "raw", self.collect)
         os.makedirs(folder, exist_ok=True)
         path = os.path.join(folder, f"{int(now * 1000)}.jpg")
         cv2.imwrite(path, self.detector.last_card_img)
         print(f"[collect] saved {path}  ({len(os.listdir(folder))} in {self.collect})")
 
-    def run(self):
-        fails = 0
-        while True:
-            ok, frame = self.cap.read()
-            now = time.time()
-            if not ok:
-                fails += 1
-                if fails % 30 == 1:
-                    print("No camera frame - is DroidCam running and connected?")
-                if not self.handle_key(cv2.waitKeyEx(30), now):
-                    break
-                continue
-            fails = 0
-            size = [frame.shape[1], frame.shape[0]]
-            if self.frame_size is None:
-                self.frame_size = size
-                saved = self.calib.get("frame_size")
-                if saved and saved != size:
-                    print(f"WARNING: calibration was made at {saved}, camera now gives {size}. Recalibrate (C).")
+    def detect(self, frame, now):
+        size = [frame.shape[1], frame.shape[0]]
+        if self.frame_size is None:
+            self.frame_size = size
+            saved = self.calib.get("frame_size")
+            if saved and saved != size:
+                print(f"WARNING: calibration was made at {saved}, camera now gives {size}. Recalibrate (C).")
+        if self.H is None:
+            self.board_view = None
+            return
+        self.board_view = cv2.warpPerspective(frame, self.H, (C.BOARD_PX, C.BOARD_PX))
+        card = self.detector.update(self.board_view, now)
+        if card:
+            print(f"[detect] new card: {card}   scores "
+                  + " ".join(f"{k}={v:.2f}" for k, v in card.scores.items()))
+            self.play_card(card, now)
+            if self.collect:
+                self.save_crop(now)
 
-            if self.H is not None:
-                self.board_view = cv2.warpPerspective(frame, self.H, (C.BOARD_PX, C.BOARD_PX))
-                card = self.detector.update(self.board_view, now)
-                if card:
-                    print(f"[detect] new card: {card}   scores "
-                          + " ".join(f"{k}={v:.2f}" for k, v in card.scores.items()))
-                    self.play_card(card, now)
-                    if self.collect:
-                        self.save_crop(now)
-            else:
-                self.board_view = None
-
-            if (C.UNO_CALL_BY_CARD_BACK and self.board_view is not None
-                    and self.game.uno_left(now) is not None
-                    and self.uno_watcher.update(self.board_view, now, self.projected)):
-                print("[uno] card back seen")
-                self.apply_events(self.game.call_uno(), now)
-            self.apply_events(self.game.tick(now), now)
-            self.projected = self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot(now), now))
-            self.show_projector(self.projected)
+    def step(self, frame, now):
+        """One frame of the loop. frame is None when the camera gave nothing:
+        the game, HUD and projector keep running, only detection stops."""
+        if frame is not None:
+            self.detect(frame, now)
+        # Settle a UNO? window that ran out before a card back can call it.
+        if C.UNO_WINDOW_SECONDS > 0 and self.game.uno_left(now) == 0.0:
+            self.apply_events(self.act("UNO penalty", lambda: self.game.tick(now)), now)
+        open_seat = self.game.uno_watch if self.game.uno_left(now) is not None else None
+        self.uno_watcher.watch(open_seat)
+        if (C.UNO_CALL_BY_CARD_BACK and frame is not None and self.board_view is not None
+                and open_seat is not None
+                and self.uno_watcher.update(self.board_view, now, self.projected)):
+            print("[uno] card back seen")
+            self.apply_events(self.act("UNO call", lambda: self.game.call_uno(now)), now)
+        self.projected = self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot(now), now))
+        self.show_projector(self.projected)
+        if frame is not None:
             self.draw_camera_view(frame)
             self.draw_debug_view()
-            if not self.handle_key(cv2.waitKeyEx(1), now):
+        elif now - self.last_cam_warning >= 1.0:
+            self.last_cam_warning = now
+            print("CAMERA DISCONNECTED - is DroidCam running and connected?")
+            w, h = self.frame_size or (640, 360)
+            img = np.zeros((h, w, 3), np.uint8)
+            put_label(img, "CAMERA DISCONNECTED", (10, 30), 0.6, (0, 0, 255))
+            cv2.imshow(WIN_CAM, img)
+
+    def run(self):
+        while True:
+            ok, frame = self.cap.read()
+            self.step(frame if ok else None, time.time())
+            if not self.handle_key(cv2.waitKeyEx(1 if ok else 30), time.time()):
                 break
         self.cap.release()
         cv2.destroyAllWindows()
 
 
 def main():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))   # models/, calibration.json, sounds sit next to this file
     ap = argparse.ArgumentParser(description="Interactive UNO table")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--test", action="store_true", help="test mode (no projector)")

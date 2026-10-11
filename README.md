@@ -40,8 +40,9 @@ All settings are in `config.py`.
 | `1 2 3 4` | fake skip / +2 / reverse / wild +4 |
 | `u` | UNO! (player on 1 card, or the current player before playing) |
 | `d` | current player draws a card and passes |
+| `z` | undo the last play / draw / UNO call / penalty, e.g. a misread card; then enter the right one with `r y g b w` / `1-4` |
 | `v` | win effect (manual) |
-| `n` | new game (4 players, 7 cards; next card on the pile starts it) |
+| `n` | new game (4 players, 7 cards; empty the discard zone first, the next card on it starts the game) |
 | `h` | help · `q`/`Esc` quit |
 | arrows / `i j k l` | move square (projector mode) |
 | `+` `-` | resize · `o` rotate · `x` mirror · `f` fullscreen · `s` save |
