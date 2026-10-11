@@ -21,7 +21,7 @@ Our longer-term purpose is to help people share the games, rules, and stories pa
 
 | Phase | Direction | Status |
 |---|---|---|
-| 1. UNO | Physical cards with projected reactions, sound, and camera input | Current prototype; live recognition still needs improvement |
+| 1. UNO | Physical cards with projected reactions, sound, and camera input | Current prototype |
 | 2. More card games | Extend the interaction to Old Maid and Big Two | Planned |
 | 3. Heritage games | Explore congkak, pallanguzhi, mahjong, carrom, paramapadam, and cherki, with detection and guidance suited to each game | Planned; requires new game logic and, where needed, new detectors |
 | 4. A living archive | Preserve rules, family variations, histories, and elders' explanations in their own voices and dialects | Long-term ambition |
