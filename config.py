@@ -133,6 +133,7 @@ REJECT_ILLEGAL = False            # False = warn but still record an illegal car
                                   # True  = refuse it: the player takes it back, nothing changes
 UNO_PENALTY = True                # forgot to call UNO before the next player acted -> draw cards
 UNO_PENALTY_CARDS = 2
+UNO_WINDOW_SECONDS = 4.0          # time to press U after going down to 1 card (0 = until the next player acts)
 
 # =====================================================================
 # HUD (turn / card counts / direction / colour, projected near the table edges)
@@ -146,3 +147,4 @@ HUD_BAR_PX = 6                    # bar along the active seat's edge, in the cur
 HUD_BAR_LEN_FRAC = 0.36
 HUD_ARROW_CENTER = (0.10, 0.90)   # direction arrow (free corner, bottom-left)
 HUD_ARROW_RADIUS = 24
+UNO_PROMPT_INSET_PX = 45         # "UNO?" prompt sits this far inside the seat label

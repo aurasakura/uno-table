@@ -39,6 +39,7 @@ class Game:
         self.pending_draw = None    # (seat, n): reminder for the HUD that this seat must pick up n cards
         self.uno_watch = None       # seat that just went down to 1 card; checked when the next player acts
         self.called = set()         # seats that have called UNO
+        self.uno_since = None       # time uno_watch went down to 1 card (for the UNO? countdown)
         self.winner = None
         self.started = False
         self.log = []
@@ -69,7 +70,7 @@ class Game:
 
     def _check_uno(self, events):
         """The next player is acting now: catch whoever is on 1 card without having called UNO."""
-        seat, self.uno_watch = self.uno_watch, None
+        seat, self.uno_watch, self.uno_since = self.uno_watch, None, None
         if seat is None or seat in self.called or self.hands[seat] != 1:
             return
         if not C.UNO_PENALTY:
@@ -125,7 +126,7 @@ class Game:
         self._to_play(events)
         return events
 
-    def play(self, card):
+    def play(self, card, now=None):
         """The current player puts `card` on the discard pile."""
         if not self.started:
             return self.start(card)
@@ -177,7 +178,9 @@ class Game:
             self._say(events, "win", f"{who} wins!")
             return events
         if self.hands[seat] == 1:
-            self.uno_watch = seat
+            self.uno_watch, self.uno_since = seat, now
+            if seat not in self.called:
+                self._say(events, "uno_due", f"{self.name(seat)} is on 1 card: press U to call UNO!")
         else:
             self.called.discard(seat)   # an early UNO call does not carry over
         self.current = self.seat_after(seat, steps)
@@ -199,6 +202,23 @@ class Game:
         self._to_play(events)
         return events
 
+    def tick(self, now):
+        """Called every frame: the UNO? window ran out without a call -> penalty."""
+        if (self.uno_watch is None or self.uno_since is None or C.UNO_WINDOW_SECONDS <= 0
+                or self.uno_watch in self.called or now - self.uno_since < C.UNO_WINDOW_SECONDS):
+            return []
+        events = []
+        self._check_uno(events)
+        return events
+
+    def uno_left(self, now):
+        """Seconds left to call UNO for the seat on 1 card, or None if no call is due."""
+        if self.uno_watch is None or self.uno_watch in self.called or self.uno_since is None:
+            return None
+        if C.UNO_WINDOW_SECONDS <= 0:
+            return 0.0
+        return max(0.0, C.UNO_WINDOW_SECONDS - (now - self.uno_since))
+
     def call_uno(self):
         """Key U: the player who just went down to 1 card calls UNO,
         or, if nobody is on 1 card, the current player calls it before playing their second-last card."""
@@ -208,8 +228,10 @@ class Game:
         self._say(events, "uno", f"{self.name(seat)} calls UNO!")
         return events
 
-    def snapshot(self):
+    def snapshot(self, now=None):
         return {
+            "uno_seat": self.uno_watch,
+            "uno_left": self.uno_left(now) if now is not None else None,
             "names": list(self.names),
             "hands": list(self.hands),
             "current": self.current,

@@ -263,7 +263,7 @@ class App:
     # Game
     # -----------------------------------------------------------------
     def play_card(self, card, now):
-        events = self.game.play(card)
+        events = self.game.play(card, now)
         if not any(e.kind == "reject" for e in events):
             self.stage.trigger(card, now)
         self.apply_events(events, now)
@@ -374,7 +374,8 @@ class App:
             else:
                 self.board_view = None
 
-            self.show_projector(self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot())))
+            self.apply_events(self.game.tick(now), now)
+            self.show_projector(self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot(now), now)))
             self.draw_camera_view(frame)
             self.draw_debug_view()
             if not self.handle_key(cv2.waitKeyEx(1), now):

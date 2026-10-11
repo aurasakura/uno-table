@@ -50,7 +50,8 @@ Seats are P1-P4 in turn order (`config.SEAT_NAMES`). The dealer is the seat befo
 | P1 plays Wild Draw Four | `hands[P1] -= 1`, `hands[P2] += 4`, P2 skipped, `current -> P3`, `colour = None` until P3's card names it |
 | Can't or won't play (key `d`) | `hands[current] += 1`, `current -> next` |
 | Say UNO (key `u`) | `called.add(seat)`: the seat that just went down to 1 card, or else the current player (calling before playing their second-last card) |
-| Forgot UNO, caught | P1 reaches 1 card without a call. When the next player plays or draws: `hands[P1] += 2`, log "P1 forgot UNO, +2" (`UNO_PENALTY`) |
+| Going down to 1 card | `uno_watch = P1`, start a `UNO_WINDOW_SECONDS` (4 s) countdown; the table shows a flashing "UNO?" and a shrinking bar facing P1. No voice recognition: a player presses `u` on the laptop for them |
+| Forgot UNO, caught | No `u` before the countdown ends, or before the next player plays or draws (whichever comes first): `hands[P1] += 2`, log "P1 forgot UNO, +2" (`UNO_PENALTY`). Only once per time on 1 card |
 | Last card played | `hands[P1] == 0`, `winner = P1`, event `win`. Any +2/+4 effect on that card is still applied first |
 | New game (key `n`) | fresh `Game()`, and the next card read is the starting card |
 

@@ -44,7 +44,7 @@ def direction_arrow(board, direction, colour):
     cv2.fillConvexPoly(board, pts, colour, AA)
 
 
-def draw(board, snap):
+def draw(board, snap, now=None):
     """Paint the HUD for Game.snapshot() `snap` onto the board image."""
     colour = C.DRAW_COLOURS.get(snap["colour"] or "wild", C.HUD_ACTIVE_BGR)
     spots = edge_spots()
@@ -62,3 +62,24 @@ def draw(board, snap):
         if active:
             edge_bar(board, side, colour)
     direction_arrow(board, snap["direction"], colour)
+    if now is not None:
+        uno_prompt(board, snap, now)
+
+
+def uno_prompt(board, snap, now):
+    """Pulsing 'UNO?' facing the seat on 1 card, with a bar that shrinks as time runs out."""
+    seat, left = snap["uno_seat"], snap["uno_left"]
+    if seat is None or left is None:
+        return
+    side = C.SEAT_SIDES[seat]
+    B, m = C.BOARD_PX, C.HUD_EDGE_PX + C.UNO_PROMPT_INSET_PX
+    x, y, q = [(B // 2, B - m, 0), (B - m, B // 2, 1), (B // 2, m, 2), (m, B // 2, 3)][side]
+    on = int(now * 4) % 2 == 0
+    stamp_text(board, "UNO?", (x, y), q, (0, 0, 255) if on else (255, 255, 255), 1.1, 3)
+    if C.UNO_WINDOW_SECONDS > 0:
+        frac = left / C.UNO_WINDOW_SECONDS
+        half = int(60 * frac)
+        d = 26                                  # bar sits just outside the text, toward the table centre
+        ends = [((x - half, y - d), (x + half, y - d)), ((x - d, y - half), (x - d, y + half)),
+                ((x - half, y + d), (x + half, y + d)), ((x + d, y - half), (x + d, y + half))][side]
+        cv2.line(board, *ends, (0, 0, 255), 4, AA)
