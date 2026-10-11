@@ -95,3 +95,12 @@ CALIB_DOT_INSET = 0.10            # dots sit this far in from the square's corne
 # =====================================================================
 TEST_PROJECTOR_WINDOW_PX = 600    # size of the fake projector window in test mode
 CALIBRATION_FILE = "calibration.json"
+
+# =====================================================================
+# SYMBOL RECOGNITION (YOLOv8, optional)
+# =====================================================================
+# Reads numbers / skip / reverse / +2 / +4 on the cut-out card. Needs `pip install ultralytics`.
+# If the model or ultralytics is missing, cards are read by colour only.
+YOLO_ENABLED = True
+YOLO_MODEL = "models/best_train2.pt"
+YOLO_CONF = 0.4

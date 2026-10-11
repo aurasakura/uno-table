@@ -122,7 +122,7 @@ def extract_card_image(zone_bgr, card_mask, size=(200, 300)):
     return cv2.warpPerspective(zone_bgr, cv2.getPerspectiveTransform(box, dst), (w, h))
 
 
-def recognise_symbol(card_bgr, colour):
+def recognise_symbol(card_bgr, colour, board_bgr=None, zone=None):
     """
     >>> HOOK: number / action-card recognition goes here. <<<
 
@@ -140,7 +140,13 @@ def recognise_symbol(card_bgr, colour):
       - or train a tiny classifier on saved crops (save card_bgr with cv2.imwrite to collect data).
     Remember the symbol can be upside down; try the image and its 180-degree rotation.
     """
-    return None
+    # YOLO needs the wider scene (it misses tight card crops), so read the whole
+    # board and keep the detection centred in the discard zone.
+    import yolo_symbol
+    if board_bgr is None:
+        return None
+    _, symbol, _ = yolo_symbol.recognise(board_bgr, zone)
+    return symbol
 
 
 # ---------------------------------------------------------------------
@@ -215,6 +221,6 @@ class CardDetector:
         self.last_read_time = now
         _, _, mask_full = classify_colour(zone)
         card_img = extract_card_image(zone, mask_full)
-        card = Card(self.live_label, recognise_symbol(card_img, self.live_label), dict(self.fractions))
+        card = Card(self.live_label, recognise_symbol(card_img, self.live_label, board_bgr, (x0, y0, x1, y1)), dict(self.fractions))
         self.status = f"READ {card}"
         return card
