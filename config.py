@@ -164,3 +164,35 @@ BACK_MIN_YELLOW = 0.04            # share of the oval that is yellow ('UNO' lett
 BACK_MIN_SOLIDITY = 0.85          # oval area / its convex hull: a solid oval, not rays or sparks
 BACK_MAX_GREEN_BLUE = 0.05        # more green/blue than this = a wild card face, not a back
 BACK_IGNORE_LIT_ABOVE = 60        # camera ignores pixels the projector lights brighter than this
+
+# =====================================================================
+# SOUND (sound.py, spec in sound_mapping.md)
+# =====================================================================
+# Needs `pip install pygame-ce`. Without it (or without an audio device) the app runs silently.
+SOUND_ENABLED = True
+SOUND_VOLUME = 0.8                # 0..1, applies to every sound
+SOUND_DIR = "sound_effects"
+SOUND_STACK_STEP = 2              # +2 on +2: semitones higher per stacked card (row 11)
+# key -> recipe. A recipe is a file name, or an op tuple (see the top of sound.py):
+#   ("pitch", r, semitones) ("reverse", r) ("gain", r, g) ("trim", r)
+#   ("layer", r1, r2, ...)  ("seq", r, times, gap_s)  ("chain", gap_s, r1, r2, ...)
+CHIME = {"red": 0, "yellow": 4, "green": 9, "blue": 7}   # semitones above correct.wav (C)
+SOUND_MAP = {
+    "start":   "drum.mp3",                                        # 1  key N / first card
+    **{c: ("pitch", "correct.wav", s) for c, s in CHIME.items()}, # 3  number card (and 9: colour after a wild)
+    **{f"change_{c}": ("layer", ("pitch", "correct.wav", s), "swish.mp3")
+       for c, s in CHIME.items()},                                # 4  same number, new colour
+    "skip":    ("layer", "bonk.mp3", "buzzer.wav"),               # 5
+    "reverse": ("reverse", "swish.mp3"),                          # 6
+    "draw2":   ("seq", "thud.wav", 2, 0.25),                      # 7
+    "wild":    ("chain", 0.1, *[("pitch", "correct.wav", s) for s in (0, 4, 7, 9, 12)]),   # 8
+    "wild4":   "explosion.wav",                                   # 10
+    "draw2_stack": "thud.wav",                                    # 11 pitched up SOUND_STACK_STEP per stack
+    "turn":    ("gain", "tick.mp3", 0.5),                         # 12 after every valid card
+    "draw":    "card_flick.mp3",                                  # 13 key D
+    "illegal": ("pitch", "buzzer.wav", -5),                       # 14 card breaks the rules
+    "uno":     ("seq", "alarm.wav", 3, 0.35),                     # 15 key U or card back held up
+    "forgot_uno": "sad_trombone.wav",                             # 16 automatic UNO penalty
+    "win":     "cheer.wav",                                       # 17 last card / key V
+    "uno_due": ("gain", ("seq", ("trim", "tick.mp3"), 2, 0.3), 0.4),   # our addition: UNO? countdown starts
+}

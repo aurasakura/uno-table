@@ -18,6 +18,7 @@ import numpy as np
 import calibration
 import config as C
 import hud
+import sound
 from uno_call import UnoCallWatcher
 from calibration import put_label
 from detector import (Card, CardDetector, circle_hits_keepout, classify_hsv_pixel, detect_rect,
@@ -109,6 +110,7 @@ class App:
         self.stage = Stage()
         self.game = Game()
         self.uno_watcher = UnoCallWatcher()
+        sound.init()
         self.projected = None       # last board image sent to the projector (uno_call ignores lit pixels)
         self.board_view = None          # last top-down camera image
         self.frame_size = None
@@ -271,7 +273,9 @@ class App:
     # Game
     # -----------------------------------------------------------------
     def play_card(self, card, now):
+        prev_top, colour_unknown = self.game.top, self.game.colour_unknown
         events = self.game.play(card, now)
+        sound.on_card(card, prev_top, colour_unknown, events, now)
         if not any(e.kind == "reject" for e in events):
             self.stage.trigger(card, now)
         self.apply_events(events, now)
@@ -280,6 +284,7 @@ class App:
         """Print the game log and play the reaction for draws, UNO calls and wins."""
         for e in events:
             print(f"[game] {e.text}")
+            sound.on_event(e, now)
             if e.kind in EVENT_REACTIONS:
                 self.react(EVENT_REACTIONS[e.kind], now)
 
@@ -308,15 +313,21 @@ class App:
         elif ch == ord("h"):
             print(HELP)
         elif ch == ord("d"):
-            self.apply_events(self.game.draw(), now)
+            events = self.game.draw()
+            if any(e.kind == "draw" for e in events):
+                sound.play("draw", now)           # only key D; +2/+4/penalty draws have their own sounds
+            self.apply_events(events, now)
         elif ch == ord("u"):
             self.apply_events(self.game.call_uno(), now)
         elif ch == ord("n"):
             self.game = Game()
             self.stage.last_card = None
+            sound.reset()
+            sound.play("start", now)
             print("[game] New game: 4 players, 7 cards each. The next card on the pile is the starting card.")
         elif ch in TABLE_EVENTS:
             self.react(TABLE_EVENTS[ch], now)
+            sound.play(TABLE_EVENTS[ch], now)
         elif ch in FAKE_COLOURS or ch in FAKE_ACTIONS:
             self.fake_card(ch, now)
         elif not self.test_mode:

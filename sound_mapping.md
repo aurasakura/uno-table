@@ -90,3 +90,34 @@ The current code (`detector.py`, `reactions.py`) emits a `Card(colour, symbol)` 
 - `Stage.trigger(card, now)` in `reactions.py` is already called for both detected and faked cards. Call a new `sounds.play_for_card(card, game_state)` from there so sound and animation stay in step.
 - Add a `sounds.py` module with: `load_all()`, the ops above, a `play(sound)` function, and `play_for_card()` implementing the priority rule.
 - Add `SOUND_ENABLED` and `SOUND_VOLUME` to `config.py`, and add a pygame (or chosen mixer) line to `requirements.txt`.
+
+## Review notes
+
+Implemented in `sound.py` (pygame-ce mixer, 32 overlapping channels, everything pre-rendered at startup). Recipes now live in `SOUND_MAP` in `config.py` as small tuples, so you can change them without touching code. Hooks are in `main.py` (`play_card`, `apply_events`, keys N / D / V), not in `Stage.trigger`. `main.react()` also calls `Stage.trigger` with pseudo-cards (uno/draw/win), so hooking there would play sounds twice. The same key fires at most once per frame.
+
+| # | Our trigger | Key in `SOUND_MAP` |
+|---|---|---|
+| 1 | key N, and the first card (`game.start`) unless N drummed in the last 5 s | `start` |
+| 2 | no deal step exists (players deal by hand) | not wired |
+| 3 | `play` event, number card or unread symbol | `red` `yellow` `green` `blue` |
+| 4 | same number as the previous top card, different colour | `change_<colour>` |
+| 5-7, 10 | symbols `skip`, `reverse`, `draw2`, `wild4` | same names |
+| 8 | wild colour, or symbol `wild` | `wild` |
+| 9 | covered by row 3: the card after a wild plays its colour chime (if it is an action card, the action sound wins by your priority rule) | |
+| 11 | consecutive `draw2` cards: `draw2_stack1..8`, pitch +2 st per stack. Stacking is OFF in `rules.md`, but +2 on +2 is still legal because the symbols match, so this is just flavour | `draw2_stack` |
+| 12 | every legal `play` except the winning card | `turn` |
+| 13 | key D only. Draws forced by +2, +4, or the penalty play no card_flick, because those triggers have their own sounds | `draw` |
+| 14 | `warn` or `reject` event: replaces the card sound and the tick | `illegal` |
+| 15 | `uno` event: key U or holding a card back up (`uno_call.py`) | `uno` |
+| 16 | automatic `penalty` event when the UNO? countdown runs out (not a button) | `forgot_uno` |
+| 17 | `win` event (automatic at 0 cards) or key V | `win` |
+| new | `uno_due` (UNO? countdown starts): two quiet trimmed ticks. This is our addition | `uno_due` |
+
+Issues found:
+- The "Dependencies on game logic that does not exist yet" section is out of date. Symbol recognition, previous-card tracking, rule checks, and the U/D/V/N keys all exist now.
+- All 12 files exist and their names match. Spec ops are implemented as written, plus `trim` and `chain`, which row 8 and `uno_due` need.
+- `tick.mp3` (3.8 s) is about 1.25 s of silence, one tick, then silence, so row 12 is heard about 1.3 s after the card. Use `("trim", "tick.mp3")` if you want the tick right away.
+- `swish.mp3` peaks at only 5% volume, so row 6 (reverse) and the swish layer in row 4 are nearly silent. Try `("gain", ..., 8)`.
+- Long sounds: `sad_trombone` 5.3 s, `drum` 4.9 s, `cheer` 4.4 s, `card_flick` 4.2 s (mostly tail), `tick` 3.8 s. They overlap with the sounds that follow and nothing gets cut off.
+- `buzzer.wav` is a full-scale square wave. Layered sounds are normalised, so `skip` does not clip, but `skip` and `illegal` are loud.
+- When a +4 lands, the game emits both the card and a `draw` event in the same frame. Only `wild4` (plus the turn tick) plays. The same goes for +2.
