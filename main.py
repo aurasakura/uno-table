@@ -32,6 +32,7 @@ ARROWS = {2424832: (-1, 0), 2555904: (1, 0), 2490368: (0, -1), 2621440: (0, 1),
 IJKL = {ord("j"): (-1, 0), ord("l"): (1, 0), ord("i"): (0, -1), ord("k"): (0, 1)}
 FAKE_COLOURS = {ord("r"): "red", ord("y"): "yellow", ord("g"): "green", ord("b"): "blue", ord("w"): "wild"}
 FAKE_ACTIONS = {ord("1"): "skip", ord("2"): "draw2", ord("3"): "reverse", ord("4"): "wild4"}
+TABLE_EVENTS = {ord("u"): "uno", ord("d"): "draw", ord("v"): "win"}   # things the camera can't see
 
 HELP = """
 ---------------------------------------------------------------
@@ -40,6 +41,7 @@ HELP = """
    space      re-learn the empty discard zone (zone must be empty)
    r y g b w  fake a red / yellow / green / blue / wild card
    1 2 3 4    fake skip / +2 / reverse / wild +4
+   u d v      UNO! call / card drawn / win
    h          show this help          q or Esc   quit
  Projector mode only
    arrows or i j k l   move the square      + / -   resize
@@ -265,6 +267,10 @@ class App:
             print("Re-learning the empty zone...")
         elif ch == ord("h"):
             print(HELP)
+        elif ch in TABLE_EVENTS:
+            last = self.stage.last_card
+            self.stage.trigger(Card(last.colour if last else "wild", TABLE_EVENTS[ch]), now)
+            self.stage.last_card = last        # an event is not a played card
         elif ch in FAKE_COLOURS or ch in FAKE_ACTIONS:
             self.fake_card(ch, now)
         elif not self.test_mode:

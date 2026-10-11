@@ -246,6 +246,55 @@ class WildFour(Pinwheel):
 
 
 # =====================================================================
+# Table events the camera can't see, triggered from the laptop keys u / d / v
+# =====================================================================
+@reaction("uno")
+class UnoAlarm(Reaction):
+    """Flashing 'UNO!' facing every player, with a pulsing ring."""
+    duration = 2.5
+
+    def draw(self, layer, t):
+        on = int(t * 6) % 2 == 0
+        col = scaled((255, 255, 255) if on else (0, 0, 255), self.k(t) + 0.3)
+        cv2.circle(layer, (self.cx, self.cy), int(self.r0 + 20 + 15 * math.sin(t * 10)), col, 10, AA)
+        for x, y, q in self.around(90):
+            stamp_text(layer, "UNO!", (x, y), q, col, 1.6, 5)
+
+
+@reaction("draw")
+class DrawCard(Reaction):
+    """Short white pulse outward from the zone: someone drew a card."""
+    duration = 1.0
+
+    def draw(self, layer, t):
+        r = int(self.r0 + 200 * t / self.duration)
+        cv2.circle(layer, (self.cx, self.cy), r, scaled((255, 255, 255), self.k(t)), 6, AA)
+
+
+@reaction("win")
+class Fireworks(Reaction):
+    """Rainbow fireworks across the table and 'WIN!' facing every player."""
+    duration = 5.0
+
+    def setup(self):
+        B = C.BOARD_PX
+        self.bursts = [(random.uniform(0.1, 0.9) * B, random.uniform(0.1, 0.9) * B,
+                        random.uniform(0, 3.5), random.choice(RAINBOW)) for _ in range(20)]
+
+    def draw(self, layer, t):
+        for x, y, t0, col in self.bursts:
+            dt = t - t0
+            if 0 <= dt < 1.2:
+                for i in range(16):
+                    a = i * math.pi / 8
+                    d = 130 * dt
+                    p = (int(x + d * math.cos(a)), int(y + d * math.sin(a)))
+                    cv2.circle(layer, p, 8, scaled(col, 1 - dt / 1.2), -1, AA)
+        for x, y, q in self.around(90):
+            stamp_text(layer, "WIN!", (x, y), q, RAINBOW[int(t * 4) % 4], 1.6, 5)
+
+
+# =====================================================================
 # Stage: keeps the running reactions and renders the board image
 # =====================================================================
 class Stage:
