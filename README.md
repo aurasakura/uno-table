@@ -121,6 +121,20 @@ Configure projector dimensions and screen position in `config.py`. In projector 
 
 Browser and Python shortcuts differ. See [MANUAL.md](MANUAL.md) and [rules.md](rules.md) for the game flow and enforced rules.
 
+## Models and credits
+
+This project builds on pretrained models and open-source work. We did not create the YOLO architecture or train the original UNO detector from scratch.
+
+| Model / component | Credit and source | How we use it |
+|---|---|---|
+| Ultralytics YOLOv8 and `yolov8n-cls.pt` | [Ultralytics](https://github.com/ultralytics/ultralytics), [YOLOv8 documentation](https://docs.ultralytics.com/models/yolov8/) | Provides the model framework and pretrained classification checkpoint used as the starting point for our deck-specific symbol training. |
+| Pretrained UNO detector, stored here as `models/best_train2.pt` | [Stormynova / Uno_Card_detection](https://github.com/Stormynova/Uno_Card_detection) | The original UNO card detector credited in `yolo_symbol.py`. Retained as the fallback when our symbol classifier is unavailable. |
+| Deck-specific classifier, `models/symbols.pt` | Our fine-tuned YOLOv8n classifier; [training provenance](models/symbols.provenance.json) | Trained on our supplied UNO deck photos to recognize numbers and action symbols. Used first when available, together with OpenCV-based colour checks. |
+
+Thank you to Ultralytics and the contributors to Stormynova's UNO detector for making their work available. Our contribution is the physical-table integration, camera/projector calibration, joint colour-and-symbol checks, deck-specific fine-tuning, game logic, and projected interactions.
+
+For upstream terms and attribution, see the [Ultralytics license](https://github.com/ultralytics/ultralytics/blob/main/LICENSE) and the [UNO detector repository's license](https://github.com/Stormynova/Uno_Card_detection/blob/main/LICENSE). These are separate upstream projects; crediting them does not relicense their work.
+
 ## Training and project files
 
 Collect labelled samples with `python main.py --collect LABEL`, where `LABEL` is `0`–`9`, `skip`, `reverse`, `draw2`, `wild`, or `wild4`. With outline extraction disabled, captured images contain the detection zone. Review and prepare samples before training with `python train_symbols.py`; training can replace the current classifier.
