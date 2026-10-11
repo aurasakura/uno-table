@@ -148,3 +148,15 @@ HUD_BAR_LEN_FRAC = 0.36
 HUD_ARROW_CENTER = (0.10, 0.90)   # direction arrow (free corner, bottom-left)
 HUD_ARROW_RADIUS = 24
 UNO_PROMPT_INSET_PX = 45         # "UNO?" prompt sits this far inside the seat label
+
+# =====================================================================
+# UNO CALL BY CARD BACK (uno_call.py)
+# =====================================================================
+# During the UNO? countdown, holding a card back up to the camera calls UNO (U still works).
+UNO_CALL_BY_CARD_BACK = True
+BACK_HOLD_SECONDS = 0.4           # back must stay in view this long (stops one-frame flickers)
+BACK_MIN_RED_PX = 800             # smallest red oval, in board pixels (board is BOARD_PX square)
+BACK_MIN_YELLOW = 0.04            # share of the oval that is yellow ('UNO' letters)
+BACK_MIN_SOLIDITY = 0.85          # oval area / its convex hull: a solid oval, not rays or sparks
+BACK_MAX_GREEN_BLUE = 0.05        # more green/blue than this = a wild card face, not a back
+BACK_IGNORE_LIT_ABOVE = 60        # camera ignores pixels the projector lights brighter than this

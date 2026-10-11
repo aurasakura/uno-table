@@ -27,6 +27,7 @@ All settings are in `config.py`.
 | `calibration.py` | click-to-calibrate, `calibration.json` |
 | `detector.py` | stillness/change logic, colour classification, `recognise_symbol()` hook for numbers/actions |
 | `yolo_symbol.py` | YOLOv8 reads number/skip/reverse/+2/+4 (needs `ultralytics`, model in `models/`; set `YOLO_ENABLED` in `config.py`) |
+| `uno_call.py` | UNO call by showing a card back to the camera during the UNO? countdown |
 | `reactions.py` | animations: add one with `@reaction("key")` on a class |
 | `projector.py` | mirror / rotate / move / resize the projected square |
 

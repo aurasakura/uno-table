@@ -18,6 +18,7 @@ import numpy as np
 import calibration
 import config as C
 import hud
+from uno_call import UnoCallWatcher
 from calibration import put_label
 from detector import Card, CardDetector, classify_hsv_pixel, detect_rect, draw_pile_rect, zone_rect
 from game import Game
@@ -106,6 +107,8 @@ class App:
         self.detector = CardDetector()
         self.stage = Stage()
         self.game = Game()
+        self.uno_watcher = UnoCallWatcher()
+        self.projected = None       # last board image sent to the projector (uno_call ignores lit pixels)
         self.board_view = None          # last top-down camera image
         self.frame_size = None
         self.click_info = None
@@ -374,8 +377,14 @@ class App:
             else:
                 self.board_view = None
 
+            if (C.UNO_CALL_BY_CARD_BACK and self.board_view is not None
+                    and self.game.uno_left(now) is not None
+                    and self.uno_watcher.update(self.board_view, now, self.projected)):
+                print("[uno] card back seen")
+                self.apply_events(self.game.call_uno(), now)
             self.apply_events(self.game.tick(now), now)
-            self.show_projector(self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot(now), now)))
+            self.projected = self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot(now), now))
+            self.show_projector(self.projected)
             self.draw_camera_view(frame)
             self.draw_debug_view()
             if not self.handle_key(cv2.waitKeyEx(1), now):
