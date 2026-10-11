@@ -84,7 +84,8 @@ def probe_cameras(max_index=5):
 
 
 class App:
-    def __init__(self, test_mode, cam_src):
+    def __init__(self, test_mode, cam_src, collect=None):
+        self.collect = collect      # symbol label: save every read card crop to dataset/raw/<label>/
         self.test_mode = test_mode
         self.mode = "test" if test_mode else "projector"
         self.cap = open_camera(cam_src)
@@ -289,6 +290,14 @@ class App:
                 self.save_placement()
         return True
 
+    def save_crop(self, now):
+        import os
+        folder = os.path.join("dataset", "raw", self.collect)
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, f"{int(now * 1000)}.jpg")
+        cv2.imwrite(path, self.detector.last_card_img)
+        print(f"[collect] saved {path}  ({len(os.listdir(folder))} in {self.collect})")
+
     def run(self):
         fails = 0
         while True:
@@ -316,6 +325,8 @@ class App:
                     print(f"[detect] new card: {card}   scores "
                           + " ".join(f"{k}={v:.2f}" for k, v in card.scores.items()))
                     self.stage.trigger(card, now)
+                    if self.collect:
+                        self.save_crop(now)
             else:
                 self.board_view = None
 
@@ -334,6 +345,8 @@ def main():
     g.add_argument("--test", action="store_true", help="test mode (no projector)")
     g.add_argument("--projector", action="store_true", help="projector mode")
     ap.add_argument("--camera", help="camera index or DroidCam URL (overrides config)")
+    ap.add_argument("--collect", metavar="LABEL",
+                    help="save each read card crop to dataset/raw/LABEL (0-9 skip reverse draw2 wild wild4)")
     ap.add_argument("--probe", action="store_true", help="show all camera indexes and exit")
     args = ap.parse_args()
 
@@ -342,7 +355,7 @@ def main():
         return
     test_mode = True if args.test else False if args.projector else C.TEST_MODE
     cam = args.camera if args.camera is not None else C.CAMERA_INDEX
-    App(test_mode, cam).run()
+    App(test_mode, cam, args.collect).run()
 
 
 if __name__ == "__main__":

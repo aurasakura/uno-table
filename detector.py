@@ -143,6 +143,8 @@ def recognise_symbol(card_bgr, colour, board_bgr=None, zone=None):
     # YOLO needs the wider scene (it misses tight card crops), so read the whole
     # board and keep the detection centred in the discard zone.
     import yolo_symbol
+    if yolo_symbol.has_classifier():          # our own trained model (train_symbols.py)
+        return yolo_symbol.classify(card_bgr)
     if board_bgr is None:
         return None
     _, symbol, _ = yolo_symbol.recognise(board_bgr, zone)
@@ -176,6 +178,7 @@ class CardDetector:
         self.change = 0.0
         self.fractions = {}
         self.live_label = None
+        self.last_card_img = None   # straightened crop of the last read card (for --collect)
 
     def update(self, board_bgr, now):
         """Feed one top-down board image. Returns a Card when a new card is read, else None."""
@@ -221,6 +224,7 @@ class CardDetector:
         self.last_read_time = now
         _, _, mask_full = classify_colour(zone)
         card_img = extract_card_image(zone, mask_full)
+        self.last_card_img = card_img
         card = Card(self.live_label, recognise_symbol(card_img, self.live_label, board_bgr, (x0, y0, x1, y1)), dict(self.fractions))
         self.status = f"READ {card}"
         return card

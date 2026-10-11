@@ -104,3 +104,7 @@ CALIBRATION_FILE = "calibration.json"
 YOLO_ENABLED = True
 YOLO_MODEL = "models/best_train2.pt"
 YOLO_CONF = 0.4
+# Our own classifier for the real deck (made by train_symbols.py). Used instead of the
+# pretrained detector once this file exists.
+SYMBOL_MODEL = "models/symbols.pt"
+SYMBOL_CONF = 0.6

@@ -52,3 +52,30 @@ def recognise(image_bgr, zone=None):
         if best is None or conf > best[2]:
             best = (*label_to_card(_model.names[int(cls)]), conf)
     return best or (None, None, 0.0)
+
+
+# ---------------------------------------------------------------------
+# Our own symbol classifier (trained by train_symbols.py on the real deck)
+# ---------------------------------------------------------------------
+_cls = None
+
+
+def has_classifier():
+    global _cls
+    import os
+    if _cls is None and C.YOLO_ENABLED and os.path.exists(C.SYMBOL_MODEL):
+        from ultralytics import YOLO
+        _cls = YOLO(C.SYMBOL_MODEL)
+    return _cls is not None
+
+
+def classify(card_bgr):
+    """Symbol ('7', 'skip', ...) for a straightened card crop, or None if unsure.
+    Tries the crop and its 180-degree turn, since cards can lie either way up."""
+    import cv2
+    best_name, best_p = None, 0.0
+    for img in (card_bgr, cv2.rotate(card_bgr, cv2.ROTATE_180)):
+        p = _cls(img, verbose=False)[0].probs
+        if p.top1conf > best_p:
+            best_name, best_p = _cls.names[p.top1], float(p.top1conf)
+    return best_name if best_p >= C.SYMBOL_CONF else None
