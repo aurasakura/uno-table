@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "checks": [
+    "Exact live calibration agrees with OpenCV within0.02px",
+    "Visible when armed",
+    "Hidden paused",
+    "Hidden calibrating",
+    "Does not intercept calibration clicks",
+    "Mobile overlay matches preview bounds",
+    "No JS errors"
+  ],
+  "live_zone_camera_pixels": [
+    [
+      557.7324854320606,
+      457.5707756009127
+    ],
+    [
+      709.3575733063238,
+      465.0630698467581
+    ],
+    [
+      722.5993866435086,
+      268.9818358784868
+    ],
+    [
+      568.383144084769,
+      261.0578564111402
+    ]
+  ]
+}

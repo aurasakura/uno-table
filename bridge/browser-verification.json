@@ -1,0 +1,27 @@
+{
+  "passed": 14,
+  "checks": [
+    "live camera connected",
+    "live camera at 1280x720",
+    "calibration required before live arming",
+    "real camera preview loads",
+    "arm disabled before calibration",
+    "historical events not replayed",
+    "detected number triggers matching effect",
+    "repeated event id ignored",
+    "action retains detected colour",
+    "auto tour blocked while armed",
+    "calibration dot at canonical location",
+    "moving projection invalidates calibration",
+    "server restart does not replay",
+    "no JavaScript runtime errors"
+  ],
+  "live_camera": {
+    "connected": true,
+    "index": 2,
+    "width": 1280,
+    "height": 720,
+    "error": null
+  },
+  "scope": "Headless browser: actual camera preview; simulated event/calibration messages for UI checks. No physical projector validation."
+}

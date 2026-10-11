@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UNO camera controls</title>
+<style>body{font:16px system-ui,sans-serif;background:#171717;color:#eee;margin:0;padding:24px}main{max-width:960px;margin:auto}h1{font-size:24px}a{color:#9ae6b4}button{font:inherit;padding:10px 16px;margin:4px 8px 4px 0;cursor:pointer}button:disabled{cursor:default;opacity:.5}#preview{display:block;width:100%;height:auto;max-height:65vh;object-fit:contain;background:#000;cursor:crosshair}#preview-wrap{display:inline-block;max-width:100%;line-height:0}#instruction{line-height:1.5}#status,#error,#last{line-height:1.5;overflow-wrap:anywhere}#error{color:#fca5a5}small{color:#bbb}</style></head>
+<body><main><h1>UNO camera calibration</h1><p><a href="/projector" target="_blank" rel="noopener">Open projector</a></p>
+<p>Keep this page on the laptop and the projector page on the table. Finish placement, size, rotation, mirror and fullscreen first. Changing placement or using a test pattern resets calibration.</p>
+<p><label for="mode">Input mode: </label><select id="mode" style="font:inherit;padding:12px"><option value="auto">Auto (camera)</option><option value="manual">Manual (remote only)</option><option value="both">Both</option></select></p>
+<p id="remote-links">Phone remote: checking LAN address...</p>
+<div><button id="calibrate">Calibrate projected dots</button><button id="arm" disabled>Start detection</button><button id="pause">Pause detection</button></div>
+<p id="instruction">Connect to the server to check the camera.</p><div id="status" role="status">Connecting…</div><p id="last">Last card: none</p><p id="error" role="alert"></p>
+<style>#preview-wrap{position:relative}#detection-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}#detection-overlay[hidden]{display:none}</style>
+<div id="preview-wrap"><img id="preview" alt="Live DroidCam preview with detection boundary when armed"><svg id="detection-overlay" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" hidden aria-label="Detection area: place the whole card inside the cyan boundary"><polygon id="detection-polygon" fill="#00e5ff" fill-opacity="0.12" stroke="#00e5ff" stroke-width="4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><g id="detection-label"><rect x="-118" y="-24" width="236" height="32" rx="6" fill="#071a20" fill-opacity="0.95"/><text text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="18" font-weight="700">PLACE CARD INSIDE</text></g></svg></div>
+<p><small>Click the centre of the single red-centred projected dot in this raw camera image. Follow all four dots in order. These are projected calibration dots, not the table corners. This tester plays detected effects and a simple turn sequence; it does not enforce game rules.</small></p>
+</main><script>
+let state=null,busy=false,pointPending=false,previewBusy=false,previewSize=null,previewHealthy=false;
+const preview=document.getElementById('preview'),instruction=document.getElementById('instruction'),error=document.getElementById('error');
+const calibrate=document.getElementById('calibrate'),arm=document.getElementById('arm'),pause=document.getElementById('pause');
+const zoneOverlay=document.getElementById('detection-overlay'),zonePolygon=document.getElementById('detection-polygon');
+// Current detector.detect_rect(): discard rectangle inset by 8 board pixels.
+const detectionRect=[224,206,376,394],calibrationDots=[[90,90],[510,90],[510,510],[90,510]];
+function cameraZone(points){
+ if(!Array.isArray(points)||points.length!==4)return null;
+ const equations=[];
+ for(let i=0;i<4;i++){
+  const [x,y]=calibrationDots[i],[u,v]=points[i];
+  if(![u,v].every(Number.isFinite))return null;
+  equations.push([x,y,1,0,0,0,-u*x,-u*y,u],[0,0,0,x,y,1,-v*x,-v*y,v]);
+ }
+ // Solve board-to-camera perspective transform, including mirror and rotation.
+ for(let col=0;col<8;col++){
+  let pivot=col;for(let row=col+1;row<8;row++)if(Math.abs(equations[row][col])>Math.abs(equations[pivot][col]))pivot=row;
+  if(Math.abs(equations[pivot][col])<1e-9)return null;
+  [equations[col],equations[pivot]]=[equations[pivot],equations[col]];
+  const divisor=equations[col][col];for(let j=col;j<9;j++)equations[col][j]/=divisor;
+  for(let row=0;row<8;row++){if(row===col)continue;const factor=equations[row][col];for(let j=col;j<9;j++)equations[row][j]-=factor*equations[col][j]}
+ }
+ const h=equations.map(row=>row[8]),[x0,y0,x1,y1]=detectionRect;
+ return [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>{const d=h[6]*x+h[7]*y+1;return [(h[0]*x+h[1]*y+h[2])/d,(h[3]*x+h[4]*y+h[5])/d]});
+}
+function renderZone(){
+ const camera=state?.camera,cal=state?.calibration;
+ zoneOverlay.setAttribute('hidden','');
+ if(!state?.armed||!camera?.connected||!cal?.valid||cal.step!=null||!previewHealthy||!previewSize)return;
+ if(previewSize[0]!==camera.width||previewSize[1]!==camera.height)return;
+ const points=cameraZone(cal.points);
+ if(!points||!points.flat().every(Number.isFinite))return;
+ zoneOverlay.setAttribute('viewBox',`0 0 ${camera.width} ${camera.height}`);
+ zonePolygon.setAttribute('points',points.map(p=>p.join(',')).join(' '));
+ const cx=Math.max(120,Math.min(camera.width-120,points.reduce((s,p)=>s+p[0],0)/4));
+ const top=Math.max(28,Math.min(camera.height-12,Math.min(...points.map(p=>p[1]))-14));
+ document.getElementById('detection-label').setAttribute('transform',`translate(${cx} ${top})`);
+ zoneOverlay.removeAttribute('hidden');
+}
+function render(){
+ const camera=state?.camera||{},cal=state?.calibration||{};
+ const mode=document.getElementById('mode');mode.disabled=busy;if(state?.mode)mode.value=state.mode;
+ const links=document.getElementById('remote-links');links.replaceChildren('Phone remote: ');
+ for(const url of state?.remote_urls||[]){const a=document.createElement('a');a.href=url;a.textContent=url;links.append(a,' ')}
+ if(!state?.remote_urls?.length){const a=document.createElement('a');a.href='/remote';a.textContent='Open remote (LAN URL requires updated server)';links.append(a)}
+ document.getElementById('status').textContent=(camera.connected?'Camera '+camera.index+' · '+camera.width+' × '+camera.height:'Camera disconnected')+' · '+(state?.armed?'Detection armed':'Detection paused')+' · '+String(state?.status||'');
+ document.getElementById('last').textContent='Last card: '+(state?.last_card?String(state.last_card.colour)+String(state.last_card.symbol):'none');
+ calibrate.disabled=busy||!camera.connected;arm.disabled=state?.mode==='manual'||busy||!camera.connected||!cal.valid||cal.step!=null||!!state?.armed;pause.disabled=busy;
+ if(cal.step!=null)instruction.textContent='Calibration '+(cal.step+1)+' of 4: click the centre of the visible projected dot in the camera preview.';
+ else if(state?.armed)instruction.textContent=String(state.status||'').includes('empty zone')?'Keep the cyan detection area empty while the reference is learned, then place one card fully inside the outline.':'Detection is running. Place one card fully inside the cyan outline, then move your hand away.';
+ else if(cal.valid)instruction.textContent='Calibration complete. Empty the discard zone, then click Start detection to learn the empty zone. Keep the projector placement fixed.';
+ else instruction.textContent='Check that the camera sees the table, then click Calibrate projected dots. Keep the projector page open and click its start screen first.';
+ if(camera.error)error.textContent=String(camera.error);
+ renderZone();
+}
+async function post(path,body={}){
+ if(busy)return false;busy=true;render();error.textContent='';
+ try{const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok){let message='HTTP '+response.status;try{const data=await response.json();message=data.error||data.message||message}catch(_){}throw Error(message)}return true}
+ catch(e){error.textContent=e.message;return false}
+ finally{busy=false;render()}
+}
+document.getElementById('mode').onchange=event=>post('/api/mode',{mode:event.target.value});
+calibrate.onclick=()=>post('/api/calibration/start');arm.onclick=()=>post('/api/arm');pause.onclick=()=>post('/api/pause');
+preview.onclick=async event=>{
+ if(state?.calibration?.step==null||pointPending||busy)return;
+ const rect=preview.getBoundingClientRect(),width=preview.naturalWidth,height=preview.naturalHeight;
+ if(!width||!height)return;
+ // object-fit may add letterboxing when the viewport height limits the image.
+ const scale=Math.min(rect.width/width,rect.height/height),shownWidth=width*scale,shownHeight=height*scale;
+ const x=(event.clientX-rect.left-(rect.width-shownWidth)/2)/scale,y=(event.clientY-rect.top-(rect.height-shownHeight)/2)/scale;
+ if(x<0||y<0||x>=width||y>=height)return;
+ pointPending=true;
+ await post('/api/calibration/point',{x,y});
+ // Prevent a second click against the same step before the next state response.
+ try{const response=await fetch('/api/state',{cache:'no-store'});if(response.ok){state=await response.json();render()}}catch(_){}
+ pointPending=false;
+};
+async function poll(){
+ try{const response=await fetch('/api/state',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);state=await response.json();render()}
+ catch(e){state=null;render();error.textContent='Camera server unavailable: '+e.message}
+ finally{setTimeout(poll,250)}
+}
+function refreshFrame(){if(previewBusy)return;previewBusy=true;preview.src='/api/frame.jpg?t='+Date.now()}
+preview.onload=()=>{previewBusy=false;previewHealthy=true;previewSize=[preview.naturalWidth,preview.naturalHeight];preview.width=previewSize[0];preview.height=previewSize[1];renderZone();setTimeout(refreshFrame,250)};
+preview.onerror=()=>{previewBusy=false;previewHealthy=false;zoneOverlay.setAttribute('hidden','');setTimeout(refreshFrame,1000)};
+poll();refreshFrame();
+</script></body></html>
+

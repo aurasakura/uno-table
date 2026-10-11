@@ -1,0 +1,25 @@
+{
+  "passed": 19,
+  "checks": [
+    "projector served",
+    "controls served",
+    "unconnected arm rejected",
+    "cross-origin mutation rejected",
+    "arbitrary file not exposed",
+    "JPEG preview supplied",
+    "calibration starts",
+    "bad point rejected",
+    "calibration point [90.0, 90.0]",
+    "calibration point [510.0, 90.0]",
+    "calibration point [510.0, 510.0]",
+    "calibration point [90.0, 510.0]",
+    "four points calibrated",
+    "recognition armed",
+    "real model emits yellow0 through bridge",
+    "same still card not repeated",
+    "event serialized",
+    "pause disarms",
+    "projection change requires calibration"
+  ],
+  "scope": "HTTP endpoints and real model on synthetic board; not a physical projector test"
+}
