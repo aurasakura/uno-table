@@ -180,17 +180,17 @@ CHIME = {"red": 0, "yellow": 4, "green": 9, "blue": 7}   # semitones above corre
 SOUND_MAP = {
     "start":   "drum.mp3",                                        # 1  key N / first card
     **{c: ("pitch", "correct.wav", s) for c, s in CHIME.items()}, # 3  number card (and 9: colour after a wild)
-    **{f"change_{c}": ("layer", ("pitch", "correct.wav", s), "swish.mp3")
+    **{f"change_{c}": ("layer", ("pitch", "correct.wav", s), ("trim", ("gain", "swish.mp3", 8)))
        for c, s in CHIME.items()},                                # 4  same number, new colour
-    "skip":    ("layer", "bonk.mp3", "buzzer.wav"),               # 5
-    "reverse": ("reverse", "swish.mp3"),                          # 6
+    "skip":    ("layer", "bonk.mp3", ("gain", "buzzer.wav", 0.5)),               # 5
+    "reverse": ("reverse", ("trim", ("gain", "swish.mp3", 10))),   # swish peaks at 5%: boost                          # 6
     "draw2":   ("seq", "thud.wav", 2, 0.25),                      # 7
     "wild":    ("chain", 0.1, *[("pitch", "correct.wav", s) for s in (0, 4, 7, 9, 12)]),   # 8
     "wild4":   "explosion.wav",                                   # 10
     "draw2_stack": "thud.wav",                                    # 11 pitched up SOUND_STACK_STEP per stack
-    "turn":    ("gain", "tick.mp3", 0.5),                         # 12 after every valid card
+    "turn":    ("gain", ("trim", "tick.mp3"), 0.5),            # trim: tick.mp3 starts with 1.25 s of silence                         # 12 after every valid card
     "draw":    "card_flick.mp3",                                  # 13 key D
-    "illegal": ("pitch", "buzzer.wav", -5),                       # 14 card breaks the rules
+    "illegal": ("gain", ("pitch", "buzzer.wav", -5), 0.5),                       # 14 card breaks the rules
     "uno":     ("seq", "alarm.wav", 3, 0.35),                     # 15 key U or card back held up
     "forgot_uno": "sad_trombone.wav",                             # 16 automatic UNO penalty
     "win":     "cheer.wav",                                       # 17 last card / key V
