@@ -9,6 +9,25 @@ The project has two entry points:
 | Browser bridge (`bridge/server.py`) | Live camera preview, projected-dot calibration, card-triggered effects, and a phone remote. Uses a simple turn sequence, not the full UNO rules engine. |
 | Python app (`main.py`) | Four-player UNO rules, turn tracking, card counts, UNO penalties, undo, and a projected HUD. |
 
+## Why we are building Common Ground Table
+
+We want technology to give people a reason to sit down and play together. The idea starts with memories of UNO at school recess, void decks, chalets, and family gatherings: shared games where the conversation and reactions matter as much as winning.
+
+Common Ground Table brings digital effects into that physical experience. Players still hold real cards, sit around the same table, and interact with one another. The camera and projector are intended to make the table respond to their moves, without asking each player to use a separate screen or learn a new app. UNO is our first prototype because it gives us a familiar game through which to explore that interaction.
+
+Our longer-term purpose is to help people share the games, rules, and stories passed down through Singapore's communities. We imagine grandparents teaching grandchildren, friends introducing games from their own families, and community spaces using one table to support those exchanges. Light, sound, and turn-by-turn guidance could help newcomers join in while experienced players share what they know.
+
+### Beyond UNO: the roadmap
+
+| Phase | Direction | Status |
+|---|---|---|
+| 1. UNO | Physical cards with projected reactions, sound, and camera input | Current prototype; live recognition still needs improvement |
+| 2. More card games | Extend the interaction to Old Maid and Big Two | Planned |
+| 3. Heritage games | Explore congkak, pallanguzhi, mahjong, carrom, paramapadam, and cherki, with detection and guidance suited to each game | Planned; requires new game logic and, where needed, new detectors |
+| 4. A living archive | Preserve rules, family variations, histories, and elders' explanations in their own voices and dialects | Long-term ambition |
+
+The proposed preservation process is to record how people play, translate the rules into game guidance, and let another generation learn through playing together. These heritage-game and archive features are a roadmap, not capabilities implemented in this repository today.
+
 ## Setup
 
 Use a Windows laptop, a phone connected through DroidCam, and a projector configured as an extended display. Confirm that the DroidCam Windows client shows live video before opening the camera in this app.
