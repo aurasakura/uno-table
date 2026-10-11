@@ -39,6 +39,14 @@ def zone_rect():
     return int(cx - hw), int(cy - hh), int(cx + hw), int(cy + hh)
 
 
+def draw_pile_rect():
+    """(x0, y0, x1, y1) of the face-down draw pile. The detector never looks here."""
+    B = C.BOARD_PX
+    cx, cy = C.DRAW_PILE_CENTER[0] * B, C.DRAW_PILE_CENTER[1] * B
+    hw, hh = C.DRAW_PILE_W_FRAC * B / 2, C.DRAW_PILE_H_FRAC * B / 2
+    return int(cx - hw), int(cy - hh), int(cx + hw), int(cy + hh)
+
+
 def detect_rect():
     """The part of the zone that is actually analysed (zone shrunk by ZONE_INSET_PX)."""
     x0, y0, x1, y1 = zone_rect()

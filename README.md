@@ -1,6 +1,6 @@
 # UNO Table
 
-A camera above the table reads the UNO card played into the discard zone, and a projector under the table shows a reaction for it.
+A camera above the table reads the UNO card played into the discard zone, and a projector under the table shows a reaction for it. A rules engine follows the game (turns, card counts, colour) and projects a small HUD at each seat. The face-down draw pile goes in the small lit rectangle next to the discard zone (`DRAW_PILE_*` in `config.py`).
 
 ## Install
 ```
@@ -21,6 +21,9 @@ All settings are in `config.py`.
 |---|---|
 | `config.py` | every setting (camera, colours, zone size, projector) |
 | `main.py` | app loop, windows, keyboard |
+| `game.py` | classic UNO rules for 4 players: turns, direction, colour, card counts, UNO penalty, win (see `rules.md`) |
+| `hud.py` | projected HUD: whose turn, card counts facing each seat, direction arrow, current colour |
+| `rules.md` | the official rules, how each one changes the game state, and what is not enforced |
 | `calibration.py` | click-to-calibrate, `calibration.json` |
 | `detector.py` | stillness/change logic, colour classification, `recognise_symbol()` hook for numbers/actions |
 | `yolo_symbol.py` | YOLOv8 reads number/skip/reverse/+2/+4 (needs `ultralytics`, model in `models/`; set `YOLO_ENABLED` in `config.py`) |
@@ -34,6 +37,10 @@ All settings are in `config.py`.
 | `space` | re-learn the empty discard zone |
 | `r y g b w` | fake red / yellow / green / blue / wild |
 | `1 2 3 4` | fake skip / +2 / reverse / wild +4 |
+| `u` | UNO! (player on 1 card, or the current player before playing) |
+| `d` | current player draws a card and passes |
+| `v` | win effect (manual) |
+| `n` | new game (4 players, 7 cards; next card on the pile starts it) |
 | `h` | help · `q`/`Esc` quit |
 | arrows / `i j k l` | move square (projector mode) |
 | `+` `-` | resize · `o` rotate · `x` mirror · `f` fullscreen · `s` save |

@@ -40,6 +40,17 @@ ZONE_BORDER_PX = 6
 BACKGROUND_BGR = (0, 0, 0)        # board background (black = no projector light)
 
 # =====================================================================
+# DRAW PILE (face-down cards; fractions of the board, like the discard zone)
+# =====================================================================
+# Painted with plain steady light, never with effects or HUD. The detector never looks here.
+DRAW_PILE_CENTER = (0.78, 0.22)   # top-right of the discard zone, between the top and right seats
+DRAW_PILE_W_FRAC = 0.16           # 8 cm wide
+DRAW_PILE_H_FRAC = 0.22           # 11 cm tall
+DRAW_PILE_FILL_BGR = (150, 150, 150)
+DRAW_PILE_BORDER_BGR = (90, 90, 90)
+DRAW_PILE_BORDER_PX = 3
+
+# =====================================================================
 # CARD DETECTION
 # =====================================================================
 DETECT_PX = 96                    # zone is shrunk to this size for motion/change checks
@@ -108,3 +119,30 @@ YOLO_CONF = 0.4
 # pretrained detector once this file exists.
 SYMBOL_MODEL = "models/symbols.pt"
 SYMBOL_CONF = 0.6
+
+# =====================================================================
+# GAME RULES (game.py, see rules.md)
+# =====================================================================
+SEAT_NAMES = ("P1", "P2", "P3", "P4")   # in turn order (clockwise seen from above = "to the left")
+# Which side of the table each seat sits on: 0 bottom, 1 right, 2 top, 3 left
+# (same order as Reaction.around()). P1 bottom, P2 on P1's left, and so on.
+SEAT_SIDES = (0, 3, 2, 1)
+START_HAND = 7                    # cards dealt to each player
+FIRST_SEAT = 0                    # P1 plays first (the dealer is the seat before it)
+REJECT_ILLEGAL = False            # False = warn but still record an illegal card (keeps the game in sync)
+                                  # True  = refuse it: the player takes it back, nothing changes
+UNO_PENALTY = True                # forgot to call UNO before the next player acted -> draw cards
+UNO_PENALTY_CARDS = 2
+
+# =====================================================================
+# HUD (turn / card counts / direction / colour, projected near the table edges)
+# =====================================================================
+HUD_EDGE_PX = 28                  # seat labels sit this far in from each board edge
+HUD_TEXT_SCALE = 0.7
+HUD_TEXT_THICKNESS = 2
+HUD_DIM_BGR = (90, 90, 90)        # seats that are waiting
+HUD_ACTIVE_BGR = (255, 255, 255)  # seat whose turn it is
+HUD_BAR_PX = 6                    # bar along the active seat's edge, in the current colour
+HUD_BAR_LEN_FRAC = 0.36
+HUD_ARROW_CENTER = (0.10, 0.90)   # direction arrow (free corner, bottom-left)
+HUD_ARROW_RADIUS = 24

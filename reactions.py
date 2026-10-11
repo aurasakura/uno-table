@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 
 import config as C
-from detector import zone_rect
+from detector import draw_pile_rect, zone_rect
 
 REACTIONS = {}
 
@@ -311,7 +311,8 @@ class Stage:
         self.last_card = card
         print(f"[reactions] {card} -> {cls.__name__}")
 
-    def render(self, now):
+    def render(self, now, overlay=None):
+        """overlay(board): optional extra drawing (the game HUD), painted under the zones."""
         B = C.BOARD_PX
         board = np.full((B, B, 3), C.BACKGROUND_BGR, np.uint8)
         layer = np.zeros_like(board)
@@ -323,10 +324,18 @@ class Stage:
                 still_running.append((r, start))
         self.active = still_running
         board = cv2.add(board, layer)
+        if overlay:
+            overlay(board)
 
         # Discard zone: border just outside, then plain steady light inside (always on top).
         x0, y0, x1, y1 = zone_rect()
         b = C.ZONE_BORDER_PX
         cv2.rectangle(board, (x0 - b, y0 - b), (x1 + b - 1, y1 + b - 1), C.ZONE_BORDER_BGR, -1)
         board[y0:y1, x0:x1] = C.ZONE_FILL_BGR
+
+        # Draw pile: same idea, thin border and plain steady light, never any effects.
+        x0, y0, x1, y1 = draw_pile_rect()
+        b = C.DRAW_PILE_BORDER_PX
+        cv2.rectangle(board, (x0 - b, y0 - b), (x1 + b - 1, y1 + b - 1), C.DRAW_PILE_BORDER_BGR, -1)
+        board[y0:y1, x0:x1] = C.DRAW_PILE_FILL_BGR
         return board

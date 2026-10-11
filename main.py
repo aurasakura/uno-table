@@ -17,8 +17,10 @@ import numpy as np
 
 import calibration
 import config as C
+import hud
 from calibration import put_label
-from detector import Card, CardDetector, classify_hsv_pixel, detect_rect, zone_rect
+from detector import Card, CardDetector, classify_hsv_pixel, detect_rect, draw_pile_rect, zone_rect
+from game import Game
 from projector import Placement, dot_frame
 from reactions import Stage
 
@@ -33,6 +35,7 @@ IJKL = {ord("j"): (-1, 0), ord("l"): (1, 0), ord("i"): (0, -1), ord("k"): (0, 1)
 FAKE_COLOURS = {ord("r"): "red", ord("y"): "yellow", ord("g"): "green", ord("b"): "blue", ord("w"): "wild"}
 FAKE_ACTIONS = {ord("1"): "skip", ord("2"): "draw2", ord("3"): "reverse", ord("4"): "wild4"}
 TABLE_EVENTS = {ord("u"): "uno", ord("d"): "draw", ord("v"): "win"}   # things the camera can't see
+EVENT_REACTIONS = {"draw": "draw", "penalty": "draw", "uno": "uno", "win": "win"}   # game event -> reaction
 
 HELP = """
 ---------------------------------------------------------------
@@ -41,7 +44,9 @@ HELP = """
    space      re-learn the empty discard zone (zone must be empty)
    r y g b w  fake a red / yellow / green / blue / wild card
    1 2 3 4    fake skip / +2 / reverse / wild +4
-   u d v      UNO! call / card drawn / win
+   u          UNO! (player on 1 card, or the current player before playing)
+   d          current player draws a card and passes
+   v          win effect (manual)       n   new game (4 players, 7 cards)
    h          show this help          q or Esc   quit
  Projector mode only
    arrows or i j k l   move the square      + / -   resize
@@ -100,6 +105,7 @@ class App:
         self.H = None                   # camera px -> board px
         self.detector = CardDetector()
         self.stage = Stage()
+        self.game = Game()
         self.board_view = None          # last top-down camera image
         self.frame_size = None
         self.click_info = None
@@ -186,6 +192,9 @@ class App:
             Hinv = np.linalg.inv(self.H)
             cv2.polylines(vis, [np.int32(cv2.perspectiveTransform(corners, Hinv))], True, (0, 255, 255), 2)
             cv2.polylines(vis, [np.int32(cv2.perspectiveTransform(zone, Hinv))], True, (0, 255, 0), 2)
+            px0, py0, px1, py1 = draw_pile_rect()
+            pile = np.float32([[[px0, py0]], [[px1, py0]], [[px1, py1]], [[px0, py1]]])
+            cv2.polylines(vis, [np.int32(cv2.perspectiveTransform(pile, Hinv))], True, (255, 160, 0), 2)
             put_label(vis, f"{self.mode} mode   C = recalibrate   H = help", (10, 30))
         else:
             put_label(vis, "NOT CALIBRATED - press C", (10, 30), 0.8, (0, 0, 255))
@@ -202,6 +211,8 @@ class App:
         cv2.rectangle(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
         dx0, dy0, dx1, dy1 = detect_rect()
         cv2.rectangle(img, (dx0, dy0), (dx1, dy1), (0, 200, 255), 1)
+        px0, py0, px1, py1 = draw_pile_rect()
+        cv2.rectangle(img, (px0, py0), (px1, py1), (255, 160, 0), 2)
         d = self.detector
         put_label(img, f"state: {d.status}", (10, 25))
         put_label(img, f"motion {d.motion:.3f} (still<{C.STILL_MAX_FRACTION})   "
@@ -246,7 +257,28 @@ class App:
                 last.colour if last and last.colour != "wild" else random.choice(["red", "yellow", "green", "blue"]))
             card = Card(colour, symbol)
         print(f"[fake] {card}")
-        self.stage.trigger(card, now)
+        self.play_card(card, now)
+
+    # -----------------------------------------------------------------
+    # Game
+    # -----------------------------------------------------------------
+    def play_card(self, card, now):
+        events = self.game.play(card)
+        if not any(e.kind == "reject" for e in events):
+            self.stage.trigger(card, now)
+        self.apply_events(events, now)
+
+    def apply_events(self, events, now):
+        """Print the game log and play the reaction for draws, UNO calls and wins."""
+        for e in events:
+            print(f"[game] {e.text}")
+            if e.kind in EVENT_REACTIONS:
+                self.react(EVENT_REACTIONS[e.kind], now)
+
+    def react(self, kind, now):
+        last = self.stage.last_card
+        self.stage.trigger(Card(last.colour if last else "wild", kind), now)
+        self.stage.last_card = last        # an event is not a played card
 
     # -----------------------------------------------------------------
     # Main loop
@@ -267,10 +299,16 @@ class App:
             print("Re-learning the empty zone...")
         elif ch == ord("h"):
             print(HELP)
+        elif ch == ord("d"):
+            self.apply_events(self.game.draw(), now)
+        elif ch == ord("u"):
+            self.apply_events(self.game.call_uno(), now)
+        elif ch == ord("n"):
+            self.game = Game()
+            self.stage.last_card = None
+            print("[game] New game: 4 players, 7 cards each. The next card on the pile is the starting card.")
         elif ch in TABLE_EVENTS:
-            last = self.stage.last_card
-            self.stage.trigger(Card(last.colour if last else "wild", TABLE_EVENTS[ch]), now)
-            self.stage.last_card = last        # an event is not a played card
+            self.react(TABLE_EVENTS[ch], now)
         elif ch in FAKE_COLOURS or ch in FAKE_ACTIONS:
             self.fake_card(ch, now)
         elif not self.test_mode:
@@ -330,13 +368,13 @@ class App:
                 if card:
                     print(f"[detect] new card: {card}   scores "
                           + " ".join(f"{k}={v:.2f}" for k, v in card.scores.items()))
-                    self.stage.trigger(card, now)
+                    self.play_card(card, now)
                     if self.collect:
                         self.save_crop(now)
             else:
                 self.board_view = None
 
-            self.show_projector(self.stage.render(now))
+            self.show_projector(self.stage.render(now, lambda b: hud.draw(b, self.game.snapshot())))
             self.draw_camera_view(frame)
             self.draw_debug_view()
             if not self.handle_key(cv2.waitKeyEx(1), now):
