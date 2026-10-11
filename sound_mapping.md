@@ -90,7 +90,3 @@ The current code (`detector.py`, `reactions.py`) emits a `Card(colour, symbol)` 
 - `Stage.trigger(card, now)` in `reactions.py` is already called for both detected and faked cards. Call a new `sounds.play_for_card(card, game_state)` from there so sound and animation stay in step.
 - Add a `sounds.py` module with: `load_all()`, the ops above, a `play(sound)` function, and `play_for_card()` implementing the priority rule.
 - Add `SOUND_ENABLED` and `SOUND_VOLUME` to `config.py`, and add a pygame (or chosen mixer) line to `requirements.txt`.
-
-## Not covered (needs new audio, not code)
-
-Power-up sweep, true tape-rewind, sparkle run, rumble lead-in, fanfare, idle/attract loop, background loop (including colour-following mood and music ducking). These have no source file and cannot be synthesised acceptably from the existing files, so they are excluded.
