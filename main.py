@@ -20,7 +20,8 @@ import config as C
 import hud
 from uno_call import UnoCallWatcher
 from calibration import put_label
-from detector import Card, CardDetector, classify_hsv_pixel, detect_rect, draw_pile_rect, zone_rect
+from detector import (Card, CardDetector, circle_hits_keepout, classify_hsv_pixel, detect_rect,
+                      draw_pile_rect, zone_rect)
 from game import Game
 from projector import Placement, dot_frame
 from reactions import Stage
@@ -156,7 +157,11 @@ class App:
             self.calib = {"cam_points": pts, "frame_size": self.frame_size}
         else:
             B, m = C.BOARD_PX, C.CALIB_DOT_INSET * C.BOARD_PX
-            proj_pts = self.placement.board_to_projector([[m, m], [B - m, m], [B - m, B - m], [m, B - m]])
+            board_pts = [[m, m], [B - m, m], [B - m, B - m], [m, B - m]]
+            r = C.CALIB_DOT_RADIUS * B / self.placement.size      # dot radius in board px
+            if any(circle_hits_keepout(x, y, r) for x, y in board_pts):
+                print("WARNING: calibration dots touch the corner posts. Raise CALIB_DOT_INSET in config.py.")
+            proj_pts = self.placement.board_to_projector(board_pts)
             prompts = [f"the projected white dot ({i + 1} of 4)" for i in range(4)]
             show_dot = lambda i: cv2.imshow(WIN_PROJ, dot_frame(proj_pts[i]))
             pts = calibration.click_points(self.cap, WIN_CAM, prompts, show_dot)

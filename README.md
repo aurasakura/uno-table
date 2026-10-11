@@ -53,3 +53,5 @@ Left-click in the **Debug** window to print a pixel's BGR/HSV values and which c
 2. Run `python main.py --projector`. Move and resize the square until it fits the table, then press `x`/`o` until the view from above looks right.
 3. Press `c`. One white dot is shown at a time. Click it in the Camera window, 4 times, then press Enter.
 4. Press `s` to save the placement. You can move or resize the square later without recalibrating.
+
+The table top is 50 x 50 cm with a 4 x 4 cm post at each corner. The square in the projector image covers the whole top, so the posts sit in its corners. The board paints a black square of post + margin (`CORNER_POST_CM` + `CORNER_MARGIN_CM`, 60 px of the 600 px board) at every corner, so no light lands on a post, and the HUD, draw pile and discard zone stay clear of them. Size the square to the full table edge, not to the gap between the posts. The calibration dots sit inside the posts (`CALIB_DOT_INSET`, 7.5 cm in from each corner), so the camera sees each whole dot on the acrylic. If you shrink the square a lot, the dots grow on the board and calibration prints a warning; raise `CALIB_DOT_INSET` then.

@@ -47,6 +47,28 @@ def draw_pile_rect():
     return int(cx - hw), int(cy - hh), int(cx + hw), int(cy + hh)
 
 
+def corner_keepouts():
+    """(x0, y0, x1, y1) of the four corner squares (post + margin) where nothing may be projected."""
+    B = C.BOARD_PX
+    s = round((C.CORNER_POST_CM + C.CORNER_MARGIN_CM) * B / C.TABLE_CM)
+    return [(0, 0, s, s), (B - s, 0, B, s), (B - s, B - s, B, B), (0, B - s, s, B)]
+
+
+def hits_keepout(x0, y0, x1, y1):
+    """True if the rectangle overlaps any corner keep-out square."""
+    return any(x0 < kx1 and kx0 < x1 and y0 < ky1 and ky0 < y1
+               for kx0, ky0, kx1, ky1 in corner_keepouts())
+
+
+def circle_hits_keepout(x, y, r):
+    """True if a circle (board px) touches any corner keep-out square."""
+    for kx0, ky0, kx1, ky1 in corner_keepouts():
+        nx, ny = min(max(x, kx0), kx1), min(max(y, ky0), ky1)    # nearest point of the square
+        if (x - nx) ** 2 + (y - ny) ** 2 < r * r:
+            return True
+    return False
+
+
 def detect_rect():
     """The part of the zone that is actually analysed (zone shrunk by ZONE_INSET_PX)."""
     x0, y0, x1, y1 = zone_rect()

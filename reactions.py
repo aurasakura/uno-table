@@ -12,7 +12,8 @@ HOW TO ADD / CHANGE A REACTION
      A card's symbol reaction is used if one exists, otherwise its colour reaction.
   3. Set `duration` (seconds).
 Anything drawn inside the discard zone is painted over with plain light (see Stage.render),
-so the camera never mistakes an animation for a card.
+so the camera never mistakes an animation for a card. The corner keep-out squares (the
+table's corner posts) are painted black last, so nothing is ever projected onto a post.
 """
 import math
 import random
@@ -21,7 +22,7 @@ import cv2
 import numpy as np
 
 import config as C
-from detector import draw_pile_rect, zone_rect
+from detector import circle_hits_keepout, corner_keepouts, draw_pile_rect, hits_keepout, zone_rect
 
 REACTIONS = {}
 
@@ -278,8 +279,12 @@ class Fireworks(Reaction):
 
     def setup(self):
         B = C.BOARD_PX
-        self.bursts = [(random.uniform(0.1, 0.9) * B, random.uniform(0.1, 0.9) * B,
-                        random.uniform(0, 3.5), random.choice(RAINBOW)) for _ in range(20)]
+        self.bursts = []
+        while len(self.bursts) < 20:
+            x, y = random.uniform(0.1, 0.9) * B, random.uniform(0.1, 0.9) * B
+            if circle_hits_keepout(x, y, 40):     # burst centres stay well away from the corner posts
+                continue
+            self.bursts.append((x, y, random.uniform(0, 3.5), random.choice(RAINBOW)))
 
     def draw(self, layer, t):
         for x, y, t0, col in self.bursts:
@@ -301,6 +306,11 @@ class Stage:
     def __init__(self):
         self.active = []          # list of (reaction, start_time)
         self.last_card = None
+        # The cards must never sit on a corner post (the border counts too).
+        for name, rect, b in (("discard zone", zone_rect(), C.ZONE_BORDER_PX),
+                              ("draw pile", draw_pile_rect(), C.DRAW_PILE_BORDER_PX)):
+            x0, y0, x1, y1 = rect
+            assert not hits_keepout(x0 - b, y0 - b, x1 + b, y1 + b), f"{name} overlaps a corner post"
 
     def trigger(self, card, now):
         cls = REACTIONS.get(card.symbol) or REACTIONS.get(card.colour)
@@ -338,4 +348,8 @@ class Stage:
         b = C.DRAW_PILE_BORDER_PX
         cv2.rectangle(board, (x0 - b, y0 - b), (x1 + b - 1, y1 + b - 1), C.DRAW_PILE_BORDER_BGR, -1)
         board[y0:y1, x0:x1] = C.DRAW_PILE_FILL_BGR
+
+        # Corner posts: no light at all, painted last so nothing can land on them.
+        for x0, y0, x1, y1 in corner_keepouts():
+            board[y0:y1, x0:x1] = 0
         return board

@@ -26,6 +26,9 @@ CAMERA_HEIGHT = 720
 # BOARD (the virtual top-down square = the whole play area)
 # =====================================================================
 BOARD_PX = 600                    # board image is BOARD_PX x BOARD_PX pixels
+TABLE_CM = 50                     # the board maps to the whole 50 x 50 cm acrylic top
+CORNER_POST_CM = 4                # a 4 x 4 cm post at each corner blocks the projection there
+CORNER_MARGIN_CM = 1              # extra safety around each post; nothing is projected in post + margin
 
 # =====================================================================
 # DISCARD ZONE (fractions of the board, centred at ZONE_CENTER)
@@ -99,7 +102,8 @@ DEFAULT_ROTATE = 0                # 0-3, quarter turns clockwise
 MOVE_STEP_PX = 10                 # arrow-key move step
 RESIZE_STEP_PX = 10               # +/- resize step
 CALIB_DOT_RADIUS = 18             # size of projected calibration dots
-CALIB_DOT_INSET = 0.10            # dots sit this far in from the square's corners (fraction)
+CALIB_DOT_INSET = 0.15            # dots sit this far in from the square's corners (fraction);
+                                  # 0.15 = 7.5 cm, so the whole dot is clear of the corner posts
 
 # =====================================================================
 # WINDOWS / FILES
@@ -145,7 +149,7 @@ HUD_DIM_BGR = (90, 90, 90)        # seats that are waiting
 HUD_ACTIVE_BGR = (255, 255, 255)  # seat whose turn it is
 HUD_BAR_PX = 6                    # bar along the active seat's edge, in the current colour
 HUD_BAR_LEN_FRAC = 0.36
-HUD_ARROW_CENTER = (0.10, 0.90)   # direction arrow (free corner, bottom-left)
+HUD_ARROW_CENTER = (0.20, 0.80)   # direction arrow: bottom-left, clear of the corner post and seat labels
 HUD_ARROW_RADIUS = 24
 UNO_PROMPT_INSET_PX = 45         # "UNO?" prompt sits this far inside the seat label
 
