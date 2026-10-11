@@ -152,6 +152,7 @@ class Game:
         if problem and C.REJECT_ILLEGAL:     # before the UNO check, so a refused card changes nothing
             self._say(events, "reject", f"{who}: {card} is not allowed ({problem}). Take it back.")
             return events
+        self.pending_draw = None     # clear the old reminder first, so a new UNO penalty's (+2) stays visible
         self._check_uno(events)
         if problem:
             self._say(events, "warn", f"WARNING {who}: {card} does not match ({problem}), recorded anyway")
@@ -160,7 +161,6 @@ class Game:
         if self.colour is None and kind not in WILDS:
             self._say(events, "info", f"Colour is now {card.colour}")
         self.hands[seat] -= 1
-        self.pending_draw = None
         self.top = card
         self.colour = None if kind in WILDS else card.colour
         self._say(events, "play", f"{who} plays {card} -> {self.hands[seat]} left")
@@ -203,11 +203,11 @@ class Game:
         if not self.started or self.winner is not None:
             self._say(events, "info", "Draw ignored: no game running")
             return events
+        self.pending_draw = None
         self._check_uno(events)
         self.unsure = False
         seat = self.current
         self._give(seat, n)
-        self.pending_draw = None
         self._say(events, "draw", f"{self.name(seat)} draws {n} and passes -> {self.hands[seat]} cards")
         self.current = self.seat_after(seat)
         self._to_play(events)

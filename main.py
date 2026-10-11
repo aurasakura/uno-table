@@ -288,17 +288,21 @@ class App:
     # -----------------------------------------------------------------
     def act(self, what, fn):
         """Run one game action, keeping a copy of the game from before it for key Z."""
-        before = (copy.deepcopy(self.game), self.stage.last_card, what)
+        before = (copy.deepcopy(self.game), self.stage.last_card, what, sound.state())
         events = fn()
         if any(e.kind not in ("info", "reject") for e in events):    # something changed
             self.undo_stack = (self.undo_stack + [before])[-C.UNDO_DEPTH:]
         return events
 
-    def undo(self):
+    def undo(self, now):
         if not self.undo_stack:
             print("[game] Undo: nothing to undo")
             return
-        self.game, self.stage.last_card, what = self.undo_stack.pop()
+        self.game, self.stage.last_card, what, snd = self.undo_stack.pop()
+        sound.set_state(snd)
+        self.stage.active.clear()          # stop effects of the undone action (e.g. a WIN)
+        if self.game.uno_left(now) == 0.0 and self.game.uno_since is not None:
+            self.game.uno_since = now      # countdown had expired: restart it, or the penalty comes straight back
         print(f"[game] Undo: {what}. {self.game.name(self.game.current)} to play"
               + ("" if self.game.started else " (no starting card yet)"))
 
@@ -353,7 +357,7 @@ class App:
         elif ch == ord("u"):
             self.apply_events(self.act("UNO call", lambda: self.game.call_uno(now)), now)
         elif ch == ord("z"):
-            self.undo()
+            self.undo(now)
         elif ch == ord("n"):
             self.game = Game()
             self.stage.last_card = None

@@ -170,6 +170,16 @@ def play(key, now=None):
         return False
 
 
+def state():
+    """Sound state that undo must restore (the +2 stack count)."""
+    return _stack
+
+
+def set_state(stack):
+    global _stack
+    _stack = stack
+
+
 def card_key(card, prev_top, colour_unknown):
     """Rows 3-11 of sound_mapping.md: the one sound for a played card, by priority
     wild4 > draw2 (stacked or not) > skip > reverse > wild > colour change > plain number."""
