@@ -1,64 +1,119 @@
 # UNO Table
 
-A camera above the table reads the UNO card played into the discard zone, and a projector under the table shows a reaction for it. A rules engine follows the game (turns, card counts, colour) and projects a small HUD at each seat. The face-down draw pile goes in the small lit rectangle next to the discard zone (`DRAW_PILE_*` in `config.py`).
+An interactive UNO table that uses a phone camera to read cards and a projector to display colour effects, action animations, and sounds.
 
-## Install
-```
-python -m pip install -r requirements.txt
-```
-On the phone, install **DroidCam**. On the laptop, install the **DroidCam Windows client**, connect them, and check the video shows in the client.
+The project has two entry points:
 
-## Run
-```
-python main.py --probe        # find which camera index is your phone
-python main.py --camera 1     # test mode (laptop + phone)
-python main.py --projector    # real projector mode
-```
-All settings are in `config.py`.
-
-Camera plays require a localized card crop with compatible colour **and** confident number/action symbol. Dark pixels never imply Wild: Wild/+4 require a recognized symbol and multiple card hues. Unknown or conflicting reads leave the game and accepted-card baseline unchanged; manual keys remain explicit overrides. Colour is measured on the crop, not the projected background.
-
-`models/symbols.pt` is the supplied-deck candidate (provenance beside the file). Heldout diagnostic validation:15/27 accepted symbols correct,2 wrong,10 abstentions at0.6; rare6/9/+4 and live extraction remain unreliable. Joint checks reduce guesses but do not prove model predictions are correct. Check real cards before a demo.
-
-Collect more real crops with `python main.py --collect LABEL` (`0`–`9`, `skip`, `reverse`, `draw2`, `wild`, `wild4`). Clear/calibrate the empty zone first. A stable localized crop is saved even if recognition abstains; saving training data does not make an unknown card a play. Review crops before `python train_symbols.py` overwrites the classifier.
-
-## Files
-| file | what it does |
+| Mode | Purpose |
 |---|---|
-| `config.py` | every setting (camera, colours, zone size, projector) |
-| `main.py` | app loop, windows, keyboard |
-| `game.py` | classic UNO rules for 4 players: turns, direction, colour, card counts, UNO penalty, win (see `rules.md`) |
-| `hud.py` | projected HUD: whose turn, card counts facing each seat, direction arrow, current colour |
-| `rules.md` | the official rules, how each one changes the game state, and what is not enforced |
-| `calibration.py` | click-to-calibrate, `calibration.json` |
-| `detector.py` | stillness/change logic, colour classification, `recognise_symbol()` hook for numbers/actions |
-| `yolo_symbol.py` | YOLOv8 reads number/skip/reverse/+2/+4 (needs `ultralytics`, model in `models/`; set `YOLO_ENABLED` in `config.py`) |
-| `uno_call.py` | UNO call by showing a card back to the camera during the UNO? countdown |
-| `reactions.py` | animations: add one with `@reaction("key")` on a class |
-| `projector.py` | mirror / rotate / move / resize the projected square |
+| Browser bridge (`bridge/server.py`) | Live camera preview, projected-dot calibration, card-triggered effects, and a phone remote. Uses a simple turn sequence, not the full UNO rules engine. |
+| Python app (`main.py`) | Four-player UNO rules, turn tracking, card counts, UNO penalties, undo, and a projected HUD. |
 
-## Keys
-| key | action |
+## Setup
+
+Use a Windows laptop, a phone connected through DroidCam, and a projector configured as an extended display. Confirm that the DroidCam Windows client shows live video before opening the camera in this app.
+
+From the repository root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --probe
+```
+
+Use the camera index reported for DroidCam. The current setup uses index `2` and the MSMF backend; another machine may use a different index. Close other apps that are using the same camera.
+
+**Current portability limitation:** `bridge/server.py` has an `APP` path pointing to the original developer's checkout. Before running the bridge on another machine, change `APP` to your repository path, for example `APP = HERE.parent`. The bundled `bridge/start.ps1` also uses that developer's Python environment; use the commands below with your own virtual environment instead.
+
+## Camera and projector bridge
+
+```powershell
+.\.venv\Scripts\python.exe bridge/server.py --camera 2 --port 8765 --host 127.0.0.1
+```
+
+1. Open [Projector](http://127.0.0.1:8765/projector) on the projector display. Click its start screen to enable audio.
+2. Set position, size, rotation, mirroring, and fullscreen before calibration. Press `H` to hide the help panel.
+3. Open [Controls](http://127.0.0.1:8765/controls) on the laptop. Check that the preview shows the real table.
+4. Click **Calibrate projected dots**. Click the centre of each projected dot in the camera preview, in order, four times. Use the dots, not the table corners.
+5. Remove cards from the detection area. Click **Start detection** and let the app learn the empty zone.
+6. Place one face-up card fully inside the cyan outline. Accepted colour-and-symbol readings update the last-card display and trigger projector effects.
+
+Moving, resizing, rotating, mirroring, changing fullscreen, or using a test pattern invalidates browser calibration. Recalibrate afterwards. Browser calibration lasts for the server session. Keep one projector page open. Stop the server with `Ctrl+C`.
+
+### Browser controls
+
+Click the projector page before using its keyboard controls.
+
+| Key | Action |
 |---|---|
-| `c` | calibrate |
-| `space` | re-learn the empty discard zone |
-| `r y g b w` | fake red / yellow / green / blue / wild |
-| `1 2 3 4` | fake skip / +2 / reverse / wild +4 |
-| `u` | UNO! (player on 1 card, or the current player before playing) |
-| `d` | current player draws a card and passes |
-| `z` | undo the last play / draw / UNO call / penalty, e.g. a misread card; then enter the right one with `r y g b w` / `1-4` |
-| `v` | win effect (manual) |
-| `n` | new game (4 players, 7 cards; empty the discard zone first, the next card on it starts the game) |
-| `h` | help · `q`/`Esc` quit |
-| arrows / `i j k l` | move square (projector mode) |
-| `+` `-` | resize · `o` rotate · `x` mirror · `f` fullscreen · `s` save |
+| `F` / `H` | Fullscreen / show or hide help |
+| Arrows / `+` / `-` | Move / resize projection |
+| `O` / `M` | Rotate / mirror |
+| `G` / `T` | Test pattern / theme |
+| `1 2 3 4` | Red / blue / green / yellow effects |
+| `S R Z X W` | Skip / reverse / +2 / +4 / wild |
+| `U D V` | UNO / draw / win |
+| `A` | Toggle the automatic tour through effects; unavailable while camera detection is armed or calibration is active |
+| `Q` | Toggle sound |
 
-Left-click in the **Debug** window to print a pixel's BGR/HSV values and which colour it counts as.
+The separately prepared video demo where each `A` press advances **green 7 → blue 7 → blue +2** is a local demo build. It is **not included in this GitHub version**.
 
-## Projector mode setup
-1. Set `PROJECTOR_WIDTH/HEIGHT` and `PROJECTOR_SCREEN_X` (= your laptop screen width) in `config.py`.
-2. Run `python main.py --projector`. Move and resize the square until it fits the table, then press `x`/`o` until the view from above looks right.
-3. Press `c`. One white dot is shown at a time. Click it in the Camera window, 4 times, then press Enter.
-4. Press `s` to save the placement. You can move or resize the square later without recalibrating.
+### Camera-free effects and phone remote
 
-The table top is 50 x 50 cm with a 4 x 4 cm post at each corner. The square in the projector image covers the whole top, so the posts sit in its corners. The board paints a black square of post + margin (`CORNER_POST_CM` + `CORNER_MARGIN_CM`, 60 px of the 600 px board) at every corner, so no light lands on a post, and the HUD, draw pile and discard zone stay clear of them. Size the square to the full table edge, not to the gap between the posts. The calibration dots sit inside the posts (`CALIB_DOT_INSET`, 7.5 cm in from each corner), so the camera sees each whole dot on the acrylic. If you shrink the square a lot, the dots grow on the board and calibration prints a warning; raise `CALIB_DOT_INSET` then.
+```powershell
+.\.venv\Scripts\python.exe bridge/server.py --no-camera --port 8765 --host 127.0.0.1
+```
+
+Open the projector and click its start screen, then use its manual keys or [Remote](http://127.0.0.1:8765/remote). Controls offers **Auto**, **Manual**, and **Both** input modes. Manual pauses camera recognition; Auto rejects remote input.
+
+For a phone on the same trusted Wi-Fi, start with `--host 0.0.0.0` and use the laptop's Wi-Fi address shown by the server. The remote and camera preview have no login; avoid exposing this port to the internet. Events sent before projector startup or reconnect are not replayed.
+
+## Current recognition behavior and limits
+
+- The calibrated detection zone is sent directly to recognition. Card-outline extraction is bypassed.
+- `STILL_SECONDS = 0.0`: recognition does not wait for stillness. Zone-change checks and the one-second accepted-read cooldown remain.
+- A play requires compatible **colour and number/action symbol** evidence. Darkness alone never identifies a Wild card. Wild and +4 require a recognized symbol and multiple hues.
+- Unknown or conflicting readings do not advance play. Projected light and background colours can interfere with classification of the full zone.
+- `models/symbols.pt` is a YOLOv8n classification candidate trained on the supplied deck photos. Its recorded diagnostic validation at confidence `0.6` contains **15 correct accepted predictions, 2 incorrect, and 10 abstentions out of 27**. This was not an independent real-world test. See [model provenance](models/symbols.provenance.json).
+- Physical testing encountered missed detections. Reliable live card-to-effect operation is not established. Manual effects remain available for demonstrations; they do not validate camera accuracy.
+
+Backend and headless browser checks cover calibration, event delivery, and effect mapping. The direct-zone bypass was checked with mocked recognition and duplicate-frame suppression. These checks do not establish physical projection alignment, speaker output, or live recognition accuracy.
+
+## Python rules-engine app
+
+```powershell
+.\.venv\Scripts\python.exe main.py --camera 2
+.\.venv\Scripts\python.exe main.py --projector --camera 2
+```
+
+Configure projector dimensions and screen position in `config.py`. In projector mode, place the square over the table, press `C`, click the four projected dots in the Camera window, and press Enter. Press `S` to save placement. Keep the discard area empty when learning its reference.
+
+| Key | Python app action |
+|---|---|
+| `C` / Space | Calibrate / relearn empty discard zone |
+| `R Y G B W` | Manual red / yellow / green / blue / wild |
+| `1 2 3 4` | Manual skip / +2 / reverse / wild +4 |
+| `U` / `D` | Call UNO / draw and pass |
+| `Z` / `N` | Undo / start a new game |
+| `V` | Manual win effect |
+| Arrows or `I J K L` | Move projection |
+| `+ -` / `O` / `X` / `F` / `S` | Resize / rotate / mirror / fullscreen / save |
+| `H` / `Q` or Esc | Help / quit |
+
+Browser and Python shortcuts differ. See [MANUAL.md](MANUAL.md) and [rules.md](rules.md) for the game flow and enforced rules.
+
+## Training and project files
+
+Collect labelled samples with `python main.py --collect LABEL`, where `LABEL` is `0`–`9`, `skip`, `reverse`, `draw2`, `wild`, or `wild4`. With outline extraction disabled, captured images contain the detection zone. Review and prepare samples before training with `python train_symbols.py`; training can replace the current classifier.
+
+| File | Role |
+|---|---|
+| `config.py` | Camera, detection, colour, sound, and projector settings |
+| `detector.py`, `yolo_symbol.py` | Zone-change detection and joint colour/symbol recognition |
+| `calibration.py` | Camera-to-table mapping |
+| `bridge/` | Browser projector, controls, remote, and HTTP bridge |
+| `main.py`, `game.py`, `hud.py` | Python app, UNO rules, and player HUD |
+| `projector.py`, `reactions.py`, `sound.py` | Projection placement, effects, and audio |
+| `models/` | Classifier, fallback detector, and model provenance |
+
+The physical design uses a 50 × 50 cm tabletop with 4 × 4 cm corner posts. Corner keep-out areas prevent projection over the posts; calibration dots sit inside those boundaries. Adjust the geometry in `config.py` for a different table.
